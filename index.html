@@ -1,0 +1,2171 @@
+<!DOCTYPE html>
+<!--
+  Zénith — Échecs 9×9 aux Entités
+  Copyright (C) 2026  <votre nom>
+
+  Ce programme est un logiciel libre : vous pouvez le redistribuer et/ou le
+  modifier selon les termes de la GNU Affero General Public License, version 3,
+  telle que publiée par la Free Software Foundation. Distribué SANS AUCUNE
+  GARANTIE. Voir le fichier LICENSE ou <https://www.gnu.org/licenses/>.
+
+  Source : https://github.com/Albator-78/zennith/releases/tag/echec
+-->
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>Zénith — Échecs 9×9 aux Entités</title>
+<style>
+:root{
+  --bg:#0b0c12;
+  --bg2:#12141d;
+  --panel:#161925;
+  --line:#272b3c;
+  --ink:#e7e3d8;
+  --dim:#8b90a6;
+  --lightsq:#5d6076;
+  --darksq:#363a4f;
+  --gold:#e8c46a;
+  --crimson:#e0574f;
+  --sel:#7fd8a6;
+  --white-piece:#f6f1e3;
+  --black-piece:#15161d;
+}
+*{box-sizing:border-box;margin:0;padding:0}
+body{
+  background:radial-gradient(ellipse at 50% -10%,#1c2033 0%,var(--bg) 60%);
+  color:var(--ink);
+  font-family:"Iowan Old Style","Palatino Linotype",Palatino,Georgia,serif;
+  min-height:100vh;
+  padding:18px 14px 40px;
+}
+.app{max-width:1120px;margin:0 auto}
+header{text-align:center;margin-bottom:20px}
+h1{
+  font-size:clamp(22px,4.4vw,34px);letter-spacing:.22em;font-weight:400;
+  background:linear-gradient(90deg,var(--gold),#fff8e2 45%,var(--crimson));
+  -webkit-background-clip:text;background-clip:text;color:transparent;
+}
+header p{color:var(--dim);font-size:13px;letter-spacing:.12em;margin-top:6px}
+
+main{display:grid;grid-template-columns:minmax(0,1fr) 320px;gap:22px;align-items:start}
+@media(max-width:860px){main{grid-template-columns:minmax(0,1fr)}}
+
+/* ---------- plateau ---------- */
+.board-wrap{
+  background:var(--panel);border:1px solid var(--line);border-radius:14px;
+  padding:12px;box-shadow:0 20px 50px rgba(0,0,0,.5);
+}
+#board{
+  display:grid;grid-template-columns:repeat(9,1fr);
+  border:1px solid #0006;border-radius:6px;overflow:hidden;
+  user-select:none;-webkit-user-select:none;
+}
+.sq{
+  position:relative;aspect-ratio:1;display:flex;align-items:center;justify-content:center;
+  cursor:default;transition:background .12s;
+}
+.sq.light{background:var(--lightsq)}
+.sq.dark{background:var(--darksq)}
+.sq .lbl{position:absolute;font-size:9px;letter-spacing:.06em;color:#ffffff5c;font-family:ui-monospace,monospace}
+.sq .lbl.rank{top:2px;left:3px}
+.sq .lbl.file{bottom:1px;right:3px}
+
+.pc{
+  font-size:clamp(20px,5.4vw,42px);line-height:1;pointer-events:none;
+  position:relative;z-index:3;transition:transform .1s;
+}
+.pc.w{color:var(--white-piece);text-shadow:0 1px 0 #0009,0 0 6px #0007}
+.pc.b{color:var(--black-piece);text-shadow:0 1px 0 #fff2,0 0 5px #000a}
+.pc.entity{
+  font-size:clamp(17px,4.2vw,32px);font-weight:700;font-family:"Segoe UI",system-ui,sans-serif;
+}
+.pc.entity.w{color:var(--gold);text-shadow:0 0 12px #e8c46a99,0 0 26px #e8c46a55}
+.pc.entity.b{color:var(--crimson);text-shadow:0 0 12px #e0574f99,0 0 26px #e0574f55}
+
+.sq.clickable{cursor:pointer}
+.sq.sel{box-shadow:inset 0 0 0 3px var(--sel)}
+.sq.last::after{content:"";position:absolute;inset:0;background:#e8c46a1f;z-index:1}
+.sq.dest::before{
+  content:"";position:absolute;width:26%;height:26%;border-radius:50%;
+  background:#e7e3d861;z-index:2;
+}
+.sq.dest.capt::before{
+  width:88%;height:88%;background:transparent;border:3px solid #e7e3d870;border-radius:50%;
+}
+.sq.striketarget::before{
+  content:"";position:absolute;inset:6%;border:3px dashed var(--crimson);border-radius:50%;
+  z-index:2;animation:pulse 1.1s ease-in-out infinite;
+}
+.sq.striketarget .bolt{
+  position:absolute;z-index:4;bottom:2px;left:3px;font-size:12px;
+  filter:drop-shadow(0 0 4px #e0574f)
+}
+@keyframes pulse{0%,100%{opacity:.55;transform:scale(.94)}50%{opacity:1;transform:scale(1)}}
+.sq.check{background:#8e2b28 !important;box-shadow:inset 0 0 20px #ff5a4f88}
+
+.sq.ray-w::after{content:"";position:absolute;inset:0;background:#e8c46a20;z-index:0}
+.sq.ray-b::after{content:"";position:absolute;inset:0;background:#e0574f20;z-index:0}
+.sq.ray-wb::after{content:"";position:absolute;inset:0;
+  background:linear-gradient(135deg,#e8c46a24,#e0574f24);z-index:0}
+
+/* ---------- panneau ---------- */
+.panel{display:flex;flex-direction:column;gap:14px}
+.card{background:var(--panel);border:1px solid var(--line);border-radius:14px;padding:14px 15px}
+.card h2{
+  font-size:11px;letter-spacing:.2em;text-transform:uppercase;color:var(--dim);
+  font-weight:400;margin-bottom:10px;
+}
+#status{font-size:16px;line-height:1.45}
+#status .big{font-size:19px;display:block;margin-bottom:2px}
+.gold{color:var(--gold)}.crim{color:var(--crimson)}.dimtxt{color:var(--dim);font-size:12.5px}
+
+.charge-row{display:flex;align-items:center;gap:9px;margin:7px 0;font-size:14px}
+.charge-row .name{width:118px;letter-spacing:.05em}
+.dot{width:11px;height:11px;border-radius:50%;display:inline-block;margin-right:4px;border:1px solid #ffffff2e}
+.dot.on.w{background:var(--gold);box-shadow:0 0 8px #e8c46a99}
+.dot.on.b{background:var(--crimson);box-shadow:0 0 8px #e0574f99}
+.dot.off{background:#ffffff10}
+
+.btns{display:flex;flex-wrap:wrap;gap:8px}
+button{
+  font-family:inherit;font-size:13px;color:var(--ink);background:#1e2231;
+  border:1px solid var(--line);border-radius:8px;padding:8px 12px;cursor:pointer;
+  transition:.15s;letter-spacing:.04em;
+}
+button:hover{background:#272c3f;border-color:#3b4159}
+button:disabled{opacity:.4;cursor:default}
+button.on{background:#2c3350;border-color:#4a5379;color:#fff}
+.opt{display:flex;align-items:center;justify-content:space-between;gap:8px;margin-top:10px;font-size:12.5px;color:var(--dim)}
+.opt select{font-family:inherit;font-size:12.5px;color:var(--ink);background:#1e2231;
+  border:1px solid var(--line);border-radius:7px;padding:5px 6px}
+.opt input[type=checkbox]{accent-color:var(--gold);vertical-align:-2px}
+.dorm{font-size:11.5px;color:var(--dim);margin-left:6px;font-style:italic}
+.opt input[type=text],.opt input:not([type]){font-family:ui-monospace,monospace;font-size:11px;
+  color:var(--ink);background:#1e2231;border:1px solid var(--line);border-radius:7px;
+  padding:5px 6px;width:170px}
+#ai-say{margin-top:10px;font-size:12.5px;line-height:1.5;color:var(--dim);min-height:1em}
+#ai-say .think{color:var(--gold)}
+#ai-say .quote{color:var(--ink);font-style:italic}
+#ai-say .warn{color:var(--crimson)}
+.sq.aimove::after{content:"";position:absolute;inset:0;background:#7fd8a61f;z-index:1}
+
+#moves{
+  font-family:ui-monospace,SFMono-Regular,Menlo,monospace;font-size:12.5px;
+  max-height:220px;overflow:auto;line-height:1.85;
+}
+#moves .row{display:grid;grid-template-columns:30px 1fr 1fr;gap:6px}
+#moves .no{color:var(--dim)}
+#moves .mv.strike{color:var(--gold)}
+#moves .row:nth-child(odd){background:#ffffff06}
+
+details{border-top:1px solid var(--line);padding-top:10px;margin-top:4px}
+details summary{cursor:pointer;font-size:12px;letter-spacing:.14em;text-transform:uppercase;color:var(--dim)}
+details ul{margin:10px 0 0 16px;font-size:13px;line-height:1.6}
+details li{margin-bottom:7px}
+details b{color:var(--gold);font-weight:600}
+
+/* ---------- jeu en ligne ---------- */
+#net-status{font-size:14px;line-height:1.5}
+.net-dot{display:inline-block;width:9px;height:9px;border-radius:50%;margin-right:7px;vertical-align:1px}
+.net-dot.off{background:#ffffff20}
+.net-dot.wait{background:var(--gold);box-shadow:0 0 8px #e8c46a99;animation:pulse 1.1s ease-in-out infinite}
+.net-dot.on{background:var(--sel);box-shadow:0 0 8px #7fd8a699}
+.net-dot.err{background:var(--crimson);box-shadow:0 0 8px #e0574f99}
+.netbox{display:flex;flex-direction:column;gap:6px;margin-top:12px}
+.netbox label{font-size:11.5px;letter-spacing:.05em;color:var(--dim)}
+.netbox textarea{font-family:ui-monospace,monospace;font-size:10px;color:var(--ink);
+  background:#1e2231;border:1px solid var(--line);border-radius:7px;padding:7px;
+  width:100%;height:54px;resize:vertical;line-height:1.35}
+.netbox textarea:focus{outline:none;border-color:#3b4159}
+.netbox button{align-self:flex-start}
+
+/* ---------- promotion ---------- */
+#promo{
+  position:fixed;inset:0;background:#000000c4;display:none;
+  align-items:center;justify-content:center;z-index:50;
+}
+#promo.show{display:flex}
+#promo .box{background:var(--panel);border:1px solid var(--line);border-radius:14px;padding:20px;text-align:center}
+#promo .box p{margin-bottom:14px;letter-spacing:.1em;font-size:13px;color:var(--dim)}
+#promo .opts{display:flex;gap:8px}
+#promo .opt{
+  width:58px;height:58px;font-size:34px;line-height:1;display:flex;align-items:center;
+  justify-content:center;background:#242a3c;border:1px solid var(--line);border-radius:10px;cursor:pointer;
+}
+#promo .opt:hover{background:#333b55}
+header .src{font-size:11px;letter-spacing:.1em;margin-top:4px}
+header .src a{color:var(--dim);text-decoration:none;border-bottom:1px dotted #ffffff33}
+header .src a:hover{color:var(--gold)}
+.langbar{display:flex;align-items:center;justify-content:center;gap:9px;margin-top:12px;
+  font-size:11px;letter-spacing:.16em;text-transform:uppercase;color:var(--dim)}
+.langbar select{font-family:inherit;font-size:12.5px;letter-spacing:.04em;text-transform:none;
+  color:var(--ink);background:#1e2231;border:1px solid var(--line);border-radius:7px;padding:5px 9px;
+  cursor:pointer}
+.langbar select:hover{border-color:#3b4159}
+#toast{
+  position:fixed;left:50%;bottom:26px;transform:translateX(-50%) translateY(20px);
+  background:#000000d9;border:1px solid var(--line);color:var(--ink);padding:10px 16px;
+  border-radius:10px;font-size:13.5px;opacity:0;pointer-events:none;transition:.25s;z-index:60;
+}
+#toast.show{opacity:1;transform:translateX(-50%) translateY(0)}
+</style>
+</head>
+<body>
+<div class="app">
+  <header>
+    <h1>Z É N I T H</h1>
+    <p id="subtitle">ÉCHECS 9×9 — Ω LE DIEU EN e1 · Ψ LE DIABLE EN e9</p>
+    <!-- AGPL §13 : offrir la source aux utilisateurs. -->
+    <p class="src"><a id="source-link" href="https://github.com/Albator-78/zennith/releases/tag/echec" rel="license noopener" target="_blank">Source (AGPL-3.0)</a></p>
+    <div class="langbar">
+      <label for="lang" data-i18n="langLabel">Langue</label>
+      <select id="lang">
+        <option value="fr">Français</option>
+        <option value="en">English</option>
+        <option value="de">Deutsch</option>
+        <option value="es">Español</option>
+        <option value="pt">Português</option>
+        <option value="it">Italiano</option>
+      </select>
+    </div>
+  </header>
+
+  <main>
+    <section class="board-wrap">
+      <div id="board"></div>
+    </section>
+
+    <aside class="panel">
+      <div class="card">
+        <h2 data-i18n="cardPosition">Position</h2>
+        <div id="status"></div>
+      </div>
+
+      <div class="card">
+        <h2 data-i18n="cardInvocations">Invocations</h2>
+        <div class="charge-row"><span class="name gold" id="nw">Ω  Dieu</span><span id="chw"></span></div>
+        <div class="charge-row"><span class="name crim" id="nb">Ψ  Diable</span><span id="chb"></span></div>
+        <div class="dimtxt" style="margin-top:8px" data-i18n="invocNote">
+          Frappes comptées pour toute la partie. Épuisée ou en recueillement,
+          une entité ne frappe plus et ne donne plus échec.
+        </div>
+      </div>
+
+      <div class="card">
+        <h2 data-i18n="cardCommands">Commandes</h2>
+        <div class="btns">
+          <button id="btn-new" data-i18n="btnNew">Nouvelle partie</button>
+          <button id="btn-undo" data-i18n="btnUndo">Annuler</button>
+          <button id="btn-rays" data-i18n="btnRays">Lignes de feu</button>
+          <button id="btn-flip" data-i18n="btnFlip">Retourner</button>
+        </div>
+        <div class="opt">
+          <label for="setup" data-i18n="labSetup">Mise en place</label>
+          <select id="setup">
+            <option value="axe" data-i18n="setupAxe">Ω e1 · Ψ e9 — l'Axe</option>
+            <option value="coeur" data-i18n="setupCoeur">Ω e5 · Ψ i9 — Cœur &amp; Corne</option>
+            <option value="zenith" data-i18n="setupZenith">Ω a5 · Ψ i5 — Zénith</option>
+          </select>
+        </div>
+        <div class="opt">
+          <label data-i18n="labCharges">Invocations Ω / Ψ</label>
+          <span><select id="sel-chw"></select> <select id="sel-chb"></select></span>
+        </div>
+        <div class="opt">
+          <label for="cool" data-i18n="labCool">Recueillement</label>
+          <span><input type="checkbox" id="cool" checked> <span data-i18n="coolNote">2 tours après chaque frappe</span></span>
+        </div>
+        <div class="dimtxt" style="margin-top:8px" data-i18n="settingsNote">Réglages appliqués à la prochaine partie.</div>
+      </div>
+
+      <div class="card">
+        <h2 data-i18n="cardOpponent">Adversaire</h2>
+        <div class="opt">
+          <label for="ai-side" data-i18n="labAiSide">L'IA joue</label>
+          <select id="ai-side">
+            <option value="" data-i18n="aiNone">Personne — 2 joueurs</option>
+            <option value="b" selected data-i18n="aiBlack">Les Noirs</option>
+            <option value="w" data-i18n="aiWhite">Les Blancs</option>
+          </select>
+        </div>
+        <div class="opt">
+          <label for="autoflip" data-i18n="labAutoflip">Retourner à chaque tour</label>
+          <span><input type="checkbox" id="autoflip"> <span class="dorm" data-i18n="autoflipNote">local — mode à deux</span></span>
+        </div>
+        <div class="opt">
+          <label for="ai-kind" data-i18n="labBrain">Cerveau</label>
+          <select id="ai-kind">
+            <option value="engine" data-i18n="brainEngine">Moteur local — alpha-bêta</option>
+            <option value="oracle" data-i18n="brainOracle">Oracle — moteur + llama.cpp</option>
+            <option value="llm" data-i18n="brainLlm">llama.cpp seul</option>
+          </select>
+        </div>
+        <div class="opt">
+          <label for="ai-level" data-i18n="labLevel">Niveau</label>
+          <select id="ai-level">
+            <option value="200" data-i18n="lvlNovice">Novice</option>
+            <option value="800" selected data-i18n="lvlAdept">Adepte</option>
+            <option value="2500" data-i18n="lvlMaster">Maître</option>
+          </select>
+        </div>
+        <div id="llm-cfg" style="display:none">
+          <div class="opt"><label for="llm-url" data-i18n="labServer">Serveur</label>
+            <input id="llm-url" value="http://127.0.0.1:8080/v1/chat/completions"></div>
+          <div class="opt"><label for="llm-model" data-i18n="labModel">Modèle</label>
+            <input id="llm-model" value="local"></div>
+          <div class="btns" style="margin-top:8px">
+            <button id="btn-test" data-i18n="btnTest">Tester la connexion</button>
+          </div>
+        </div>
+        <div id="ai-say"></div>
+      </div>
+
+      <div class="card" id="card-online">
+        <h2 data-i18n="cardOnline">Jeu en ligne</h2>
+        <div class="dimtxt" style="margin-bottom:9px" data-i18n="onlineNote">
+          Jouez à deux sur Internet, sans serveur : échangez les codes de connexion (pair-à-pair WebRTC).
+        </div>
+        <div id="net-status"><span class="net-dot off"></span><span data-i18n="netIdle">Hors ligne</span></div>
+        <div class="btns" style="margin-top:9px">
+          <button id="btn-host" data-i18n="btnHost">Créer une partie</button>
+          <button id="btn-join" data-i18n="btnJoin">Rejoindre</button>
+          <button id="btn-leave" data-i18n="btnLeave" style="display:none">Quitter</button>
+        </div>
+
+        <div id="net-host" class="netbox" style="display:none">
+          <label data-i18n="lblYourCode">1) Envoie ce code à ton adversaire :</label>
+          <textarea id="net-offer" readonly placeholder="…"></textarea>
+          <button id="btn-copy-offer" data-i18n="btnCopy">Copier</button>
+          <label data-i18n="lblPasteAnswer">2) Colle ici sa réponse, puis connecte :</label>
+          <textarea id="net-answer-in" placeholder="…"></textarea>
+          <button id="btn-host-connect" data-i18n="btnConnect">Se connecter</button>
+        </div>
+
+        <div id="net-join" class="netbox" style="display:none">
+          <label data-i18n="lblPasteOffer">1) Colle le code reçu :</label>
+          <textarea id="net-offer-in" placeholder="…"></textarea>
+          <button id="btn-gen-answer" data-i18n="btnGenAnswer">Générer la réponse</button>
+          <label data-i18n="lblYourAnswer">2) Renvoie cette réponse à l'hôte :</label>
+          <textarea id="net-answer-out" readonly placeholder="…"></textarea>
+          <button id="btn-copy-answer" data-i18n="btnCopy">Copier</button>
+        </div>
+      </div>
+
+      <div class="card">
+        <h2 data-i18n="cardLearning">Apprentissage</h2>
+        <div class="dimtxt" style="margin-bottom:9px" data-i18n="learnNote">
+          Le moteur joue contre lui-même et ajuste ses poids d'évaluation.
+          Le modèle appris (~10 nombres) est conservé dans ce navigateur.
+        </div>
+        <div class="opt">
+          <label for="train-n" data-i18n="labGames">Parties</label>
+          <select id="train-n">
+            <option value="30">30 — ~30 s</option>
+            <option value="60" selected>60 — ~1 min</option>
+            <option value="150">150 — ~3 min</option>
+            <option value="400">400 — ~8 min</option>
+          </select>
+        </div>
+        <div class="btns" style="margin-top:8px">
+          <button id="btn-train" data-i18n="btnTrain">Entraîner</button>
+          <button id="btn-w-reset" data-i18n="btnWReset">Réinitialiser</button>
+          <button id="btn-w-export" data-i18n="btnWExport">Exporter</button>
+          <button id="btn-w-import" data-i18n="btnWImport">Importer</button>
+        </div>
+        <div id="train-say" style="margin-top:9px;font-size:12.5px;min-height:1em"></div>
+        <div id="weights" style="margin-top:8px;font-family:ui-monospace,monospace;font-size:10.5px;
+             color:var(--dim);line-height:1.6;word-break:break-word"></div>
+        <input type="file" id="w-file" accept="application/json" style="display:none">
+      </div>
+
+      <div class="card">
+        <h2 data-i18n="cardGame">Partie</h2>
+        <div id="moves"></div>
+        <details>
+          <summary data-i18n="lawsSummary">Les lois</summary>
+          <ul>
+            <li data-i18n-html="law1"></li>
+            <li data-i18n-html="law2"></li>
+            <li data-i18n-html="law3"></li>
+            <li data-i18n-html="law4"></li>
+            <li data-i18n-html="law5"></li>
+            <li data-i18n-html="law6"></li>
+          </ul>
+          <ul style="margin-top:12px">
+            <li data-i18n-html="law7"></li>
+            <li data-i18n-html="law8"></li>
+            <li data-i18n-html="law9"></li>
+            <li data-i18n-html="law10"></li>
+          </ul>
+        </details>
+      </div>
+    </aside>
+  </main>
+</div>
+
+<div id="promo"><div class="box">
+  <p data-i18n="promoTitle">PROMOTION</p><div class="opts" id="promo-opts"></div>
+</div></div>
+<div id="toast"></div>
+
+<script>
+"use strict";
+/* ============================================================
+   ZÉNITH — internationalisation (fr · en · de · es · pt · it)
+   Une seule table : chaque clé porte ses six versions.
+   {x} = substitution.  Les clés absentes retombent sur le français.
+   ============================================================ */
+const I18N = {
+
+fr:{
+  docTitle:"Zénith — Échecs 9×9 aux Entités",
+  chessTitle:"ÉCHECS 9×9", langLabel:"Langue",
+  subGod:"Ω LE DIEU EN", subDevil:"Ψ LE DIABLE EN",
+  piece:{P:"Pion",N:"Cavalier",B:"Fou",R:"Tour",Q:"Dame",K:"Roi",A:"Archange",G:"Dieu",D:"Diable"},
+  let:{P:"",N:"C",B:"F",R:"T",Q:"D",K:"R",A:"A",G:"Ω",D:"Ψ"},
+  cardPosition:"Position", cardInvocations:"Invocations", cardCommands:"Commandes",
+  cardOpponent:"Adversaire", cardLearning:"Apprentissage", cardGame:"Partie",
+  invocNote:"Frappes comptées pour toute la partie. Épuisée ou en recueillement, une entité ne frappe plus et ne donne plus échec.",
+  btnNew:"Nouvelle partie", btnUndo:"Annuler", btnRays:"Lignes de feu", btnFlip:"Retourner",
+  labSetup:"Mise en place",
+  setupAxe:"Ω e1 · Ψ e9 — l'Axe", setupCoeur:"Ω e5 · Ψ i9 — Cœur & Corne", setupZenith:"Ω a5 · Ψ i5 — Zénith",
+  labCharges:"Invocations Ω / Ψ", labCool:"Recueillement", coolNote:"2 tours après chaque frappe",
+  settingsNote:"Réglages appliqués à la prochaine partie.",
+  labAiSide:"L'IA joue", aiNone:"Personne — 2 joueurs", aiBlack:"Les Noirs", aiWhite:"Les Blancs",
+  labBrain:"Cerveau", brainEngine:"Moteur local — alpha-bêta",
+  brainOracle:"Oracle — moteur + llama.cpp", brainLlm:"llama.cpp seul",
+  labLevel:"Niveau", lvlNovice:"Novice", lvlAdept:"Adepte", lvlMaster:"Maître",
+  labServer:"Serveur", labModel:"Modèle", btnTest:"Tester la connexion",
+  learnNote:"Le moteur joue contre lui-même et ajuste ses poids d'évaluation. Le modèle appris (~10 nombres) est conservé dans ce navigateur.",
+  labGames:"Parties", btnTrain:"Entraîner", btnWReset:"Réinitialiser",
+  btnWExport:"Exporter", btnWImport:"Importer",
+  lawsSummary:"Les lois", promoTitle:"PROMOTION",
+  labAutoflip:"Retourner à chaque tour", autoflipNote:"local — mode à deux",
+  cardOnline:"Jeu en ligne",
+  onlineNote:"Jouez à deux sur Internet, sans serveur : échangez les codes de connexion (pair-à-pair WebRTC).",
+  btnHost:"Créer une partie", btnJoin:"Rejoindre", btnLeave:"Quitter", btnConnect:"Se connecter",
+  btnGenAnswer:"Générer la réponse", btnCopy:"Copier", copied:"Copié !",
+  lblYourCode:"1) Envoie ce code à ton adversaire :", lblPasteAnswer:"2) Colle ici sa réponse, puis connecte :",
+  lblPasteOffer:"1) Colle le code reçu :", lblYourAnswer:"2) Renvoie cette réponse à l'hôte :",
+  netIdle:"Hors ligne", netWaiting:"En attente de connexion…", netConnected:"Connecté — tu joues les {s}",
+  netLeft:"Adversaire déconnecté.", netError:"Échec de la connexion — vérifie les codes.",
+  law1:"<b>La Frappe fugace</b> — clique sur Ω ou Ψ : elle prend une pièce adverse sur une de ses 8 lignes (voie entièrement dégagée), puis revient aussitôt. La frappe consomme tout ton tour.",
+  law2:"<b>Les Invocations</b> — 3 frappes maximum par entité, pour toute la partie.",
+  law3:"<b>L'Immortalité</b> — une entité ne peut jamais être prise, ni sa case occupée.",
+  law4:"<b>Le Pacte</b> — Ω et Ψ ne peuvent pas se frapper l'une l'autre.",
+  law5:"<b>L'Appel</b> — une entité qui vise le Roi adverse donne échec, mais seulement s'il lui reste une Invocation.",
+  law6:"<b>Le Recueillement</b> (optionnel) — après une frappe, l'entité reste muette 2 tours : elle ne frappe plus et ne donne plus échec.",
+  law7:"<b>Losange sacré</b> — e1·a5·e9·i5 : les quatre diagonales des entités dessinent ce losange. Ω et Ψ se font face sur la colonne e, qui devient le <i>Purgatoire</i> ; a5 et i5 sont les deux carrefours battus par les deux entités à la fois.",
+  law8:"<b>Le Roi et la Dame encadrent l'entité</b> (d1·e1·f1). L'Archange cède sa case : l'armée est celle des échecs classiques, plus un 9ᵉ pion.",
+  law9:"<b>Roque</b> — seulement du côté i : l'entité en e1 mure définitivement le grand roque.",
+  law10:"<b>Sentinelle</b> — chaque entité couvre sa propre première rangée : les mats du couloir sont presque impossibles tant qu'il lui reste une Invocation.",
+  white:"Blancs", black:"Noirs", whiteAdj:"blanc", blackAdj:"noir",
+  dormant:"recueillement",
+  checkTitle:"Échec au Roi {s}", callNote:"L'Appel — l'entité adverse vise ton Roi.",
+  parryNote:"Il faut parer l'échec.",
+  turnOf:"Trait aux {s}", legalMoves:"{n} coups légaux",
+  mate:"Échec et mat", winnerLine:"Les {s} l'emportent.",
+  stalemate:"Pat", draw:"Partie nulle.",
+  toastExhausted:"{p} est épuisé — plus aucune Invocation.",
+  toastNoTarget:"{p} n'a aucune cible : toutes ses voies sont obstruées.",
+  aiThinking:"réflexion…", aiDepth:"profondeur {d} · {ms} ms · évaluation {e}",
+  aiFallback:"coup joué par le moteur local.",
+  aiChosen:"choisi parmi {n} coups du moteur (profondeur {d})",
+  aiAlone:"le moteur a tranché seul.", aiTest:"test…",
+  aiConnected:"Connexion établie — le modèle propose {m}.",
+  aiFail:"Échec : {e}",
+  aiHint:"Lance : llama-server -m modele.gguf --host 127.0.0.1 --port 8080",
+  aiBadReply:"réponse inexploitable : {t}",
+  trainSelf:"Self-play — partie {i}/{n} · {k} positions",
+  trainTune:"Réglage sur {n} positions…",
+  trainDone:"Appris — erreur {a} → <b>{b}</b> · K={k} · {n} positions.",
+  trainReset:"Poids d'origine rétablis.", trainImported:"Modèle importé ({n} poids).",
+  trainBadFile:"Fichier illisible.",
+  pSys:"Tu es un joueur d'échecs expert sur la variante 9x9 « Zénith ». Tu réponds UNIQUEMENT par un objet JSON, sans texte autour.",
+  pRules:"Variante d'échecs 9x9. Colonnes a-i, rangées 1-9.\nPièces : P pion, N cavalier, B fou, R tour, Q dame, K roi, A archange (fou+cavalier).\nMAJUSCULE = Blancs, minuscule = Noirs.\nΩ = le Dieu (entité blanche), Ψ = le Diable (entité noire).\nLes entités NE SE DÉPLACENT JAMAIS et ne peuvent pas être prises. À son tour, un camp peut ordonner une frappe (notée Ω*case) : l'entité prend une pièce adverse sur une de ses 8 lignes si la voie est entièrement dégagée, puis revient aussitôt. La frappe consomme le tour. Chaque entité n'a qu'un nombre limité d'Invocations, ensuite elle est inerte.",
+  pPosition:"Position :", pTurn:"Trait aux {s}.",
+  pCharges:"Invocations restantes — Ω : {w}, Ψ : {b}.",
+  pMoves:"Coups autorisés (tu DOIS en choisir un, à l'identique) :",
+  pEval:"évaluation moteur",
+  pAnswer:`Réponds exactement : {"coup": "<un coup de la liste>", "raison": "<une phrase courte>"}`
+},
+
+en:{
+  docTitle:"Zenith — 9×9 Chess with Entities",
+  chessTitle:"9×9 CHESS", langLabel:"Language",
+  subGod:"Ω THE GOD ON", subDevil:"Ψ THE DEVIL ON",
+  piece:{P:"Pawn",N:"Knight",B:"Bishop",R:"Rook",Q:"Queen",K:"King",A:"Archangel",G:"God",D:"Devil"},
+  let:{P:"",N:"N",B:"B",R:"R",Q:"Q",K:"K",A:"A",G:"Ω",D:"Ψ"},
+  cardPosition:"Position", cardInvocations:"Invocations", cardCommands:"Controls",
+  cardOpponent:"Opponent", cardLearning:"Learning", cardGame:"Game",
+  invocNote:"Strikes are counted for the whole game. Once spent, or while in recollection, an entity no longer strikes and no longer gives check.",
+  btnNew:"New game", btnUndo:"Undo", btnRays:"Lines of fire", btnFlip:"Flip",
+  labSetup:"Setup",
+  setupAxe:"Ω e1 · Ψ e9 — the Axis", setupCoeur:"Ω e5 · Ψ i9 — Heart & Horn", setupZenith:"Ω a5 · Ψ i5 — Zenith",
+  labCharges:"Invocations Ω / Ψ", labCool:"Recollection", coolNote:"2 turns after each strike",
+  settingsNote:"Settings apply to the next game.",
+  labAiSide:"The AI plays", aiNone:"Nobody — 2 players", aiBlack:"Black", aiWhite:"White",
+  labBrain:"Brain", brainEngine:"Local engine — alpha-beta",
+  brainOracle:"Oracle — engine + llama.cpp", brainLlm:"llama.cpp alone",
+  labLevel:"Level", lvlNovice:"Novice", lvlAdept:"Adept", lvlMaster:"Master",
+  labServer:"Server", labModel:"Model", btnTest:"Test connection",
+  learnNote:"The engine plays against itself and tunes its evaluation weights. The learned model (~10 numbers) is kept in this browser.",
+  labGames:"Games", btnTrain:"Train", btnWReset:"Reset",
+  btnWExport:"Export", btnWImport:"Import",
+  lawsSummary:"The laws", promoTitle:"PROMOTION",
+  labAutoflip:"Flip each turn", autoflipNote:"local — 2-player",
+  cardOnline:"Online play",
+  onlineNote:"Play head-to-head over the Internet, serverless: swap connection codes (WebRTC peer-to-peer).",
+  btnHost:"Create game", btnJoin:"Join", btnLeave:"Leave", btnConnect:"Connect",
+  btnGenAnswer:"Generate answer", btnCopy:"Copy", copied:"Copied!",
+  lblYourCode:"1) Send this code to your opponent:", lblPasteAnswer:"2) Paste their answer here, then connect:",
+  lblPasteOffer:"1) Paste the code you received:", lblYourAnswer:"2) Send this answer back to the host:",
+  netIdle:"Offline", netWaiting:"Waiting for connection…", netConnected:"Connected — you play {s}",
+  netLeft:"Opponent disconnected.", netError:"Connection failed — check the codes.",
+  law1:"<b>The Fleeting Strike</b> — click Ω or Ψ: the entity captures an enemy piece on one of its 8 lines (the path must be entirely clear), then returns at once. A strike uses up your whole turn.",
+  law2:"<b>The Invocations</b> — 3 strikes at most per entity, for the whole game.",
+  law3:"<b>Immortality</b> — an entity can never be captured, nor its square occupied.",
+  law4:"<b>The Pact</b> — Ω and Ψ cannot strike one another.",
+  law5:"<b>The Summons</b> — an entity bearing on the enemy King gives check, but only while it still has an Invocation left.",
+  law6:"<b>Recollection</b> (optional) — after a strike, the entity falls silent for 2 turns: it neither strikes nor gives check.",
+  law7:"<b>Sacred rhombus</b> — e1·a5·e9·i5: the four diagonals of the entities trace this rhombus. Ω and Ψ face each other on the e-file, which becomes the <i>Purgatory</i>; a5 and i5 are the two crossroads covered by both entities at once.",
+  law8:"<b>King and Queen flank the entity</b> (d1·e1·f1). The Archangel gives up its square: the army is exactly that of classical chess, plus a 9th pawn.",
+  law9:"<b>Castling</b> — on the i-side only: the entity on e1 permanently walls off queenside castling.",
+  law10:"<b>Sentinel</b> — each entity covers its own first rank: back-rank mates are all but impossible while it still holds an Invocation.",
+  white:"White", black:"Black", whiteAdj:"white", blackAdj:"black",
+  dormant:"recollection",
+  checkTitle:"The {s} King is in check", callNote:"The Summons — the enemy entity bears on your King.",
+  parryNote:"The check must be answered.",
+  turnOf:"{s} to move", legalMoves:"{n} legal moves",
+  mate:"Checkmate", winnerLine:"{s} wins.",
+  stalemate:"Stalemate", draw:"Drawn game.",
+  toastExhausted:"{p} is spent — no Invocation left.",
+  toastNoTarget:"{p} has no target: all its paths are blocked.",
+  aiThinking:"thinking…", aiDepth:"depth {d} · {ms} ms · evaluation {e}",
+  aiFallback:"move played by the local engine.",
+  aiChosen:"chosen among {n} engine moves (depth {d})",
+  aiAlone:"the engine decided on its own.", aiTest:"testing…",
+  aiConnected:"Connection established — the model suggests {m}.",
+  aiFail:"Failed: {e}",
+  aiHint:"Run: llama-server -m model.gguf --host 127.0.0.1 --port 8080",
+  aiBadReply:"unusable reply: {t}",
+  trainSelf:"Self-play — game {i}/{n} · {k} positions",
+  trainTune:"Tuning on {n} positions…",
+  trainDone:"Learned — error {a} → <b>{b}</b> · K={k} · {n} positions.",
+  trainReset:"Original weights restored.", trainImported:"Model imported ({n} weights).",
+  trainBadFile:"Unreadable file.",
+  pSys:"You are an expert chess player on the 9x9 variant \"Zenith\". You answer ONLY with a JSON object, with no surrounding text.",
+  pRules:"9x9 chess variant. Files a-i, ranks 1-9.\nPieces: P pawn, N knight, B bishop, R rook, Q queen, K king, A archangel (bishop+knight).\nUPPERCASE = White, lowercase = Black.\nΩ = the God (white entity), Ψ = the Devil (black entity).\nThe entities NEVER MOVE and cannot be captured. On its turn a side may order a strike (written Ω*square): the entity captures an enemy piece on one of its 8 lines if the path is entirely clear, then returns at once. A strike uses up the turn. Each entity has only a limited number of Invocations; after that it is inert.",
+  pPosition:"Position:", pTurn:"{s} to move.",
+  pCharges:"Invocations left — Ω: {w}, Ψ: {b}.",
+  pMoves:"Legal moves (you MUST pick one, exactly as written):",
+  pEval:"engine evaluation",
+  pAnswer:`Answer exactly: {"move": "<one move from the list>", "reason": "<one short sentence>"}`
+},
+
+de:{
+  docTitle:"Zenith — 9×9-Schach mit Wesenheiten",
+  chessTitle:"SCHACH 9×9", langLabel:"Sprache",
+  subGod:"Ω DER GOTT AUF", subDevil:"Ψ DER TEUFEL AUF",
+  piece:{P:"Bauer",N:"Springer",B:"Läufer",R:"Turm",Q:"Dame",K:"König",A:"Erzengel",G:"Gott",D:"Teufel"},
+  let:{P:"",N:"S",B:"L",R:"T",Q:"D",K:"K",A:"E",G:"Ω",D:"Ψ"},
+  cardPosition:"Stellung", cardInvocations:"Anrufungen", cardCommands:"Steuerung",
+  cardOpponent:"Gegner", cardLearning:"Lernen", cardGame:"Partie",
+  invocNote:"Die Schläge zählen für die ganze Partie. Erschöpft oder in Einkehr schlägt eine Wesenheit nicht mehr und bietet kein Schach mehr.",
+  btnNew:"Neue Partie", btnUndo:"Zurück", btnRays:"Feuerlinien", btnFlip:"Drehen",
+  labSetup:"Aufstellung",
+  setupAxe:"Ω e1 · Ψ e9 — die Achse", setupCoeur:"Ω e5 · Ψ i9 — Herz & Horn", setupZenith:"Ω a5 · Ψ i5 — Zenit",
+  labCharges:"Anrufungen Ω / Ψ", labCool:"Einkehr", coolNote:"2 Züge nach jedem Schlag",
+  settingsNote:"Die Einstellungen gelten ab der nächsten Partie.",
+  labAiSide:"Die KI spielt", aiNone:"Niemand — 2 Spieler", aiBlack:"Schwarz", aiWhite:"Weiß",
+  labBrain:"Gehirn", brainEngine:"Lokale Engine — Alpha-Beta",
+  brainOracle:"Orakel — Engine + llama.cpp", brainLlm:"nur llama.cpp",
+  labLevel:"Stufe", lvlNovice:"Novize", lvlAdept:"Adept", lvlMaster:"Meister",
+  labServer:"Server", labModel:"Modell", btnTest:"Verbindung testen",
+  learnNote:"Die Engine spielt gegen sich selbst und justiert ihre Bewertungsgewichte. Das gelernte Modell (~10 Zahlen) bleibt in diesem Browser gespeichert.",
+  labGames:"Partien", btnTrain:"Trainieren", btnWReset:"Zurücksetzen",
+  btnWExport:"Exportieren", btnWImport:"Importieren",
+  lawsSummary:"Die Gesetze", promoTitle:"UMWANDLUNG",
+  law1:"<b>Der flüchtige Schlag</b> — klicke auf Ω oder Ψ: die Wesenheit schlägt eine gegnerische Figur auf einer ihrer 8 Linien (der Weg muss völlig frei sein) und kehrt sofort zurück. Der Schlag verbraucht den ganzen Zug.",
+  law2:"<b>Die Anrufungen</b> — höchstens 3 Schläge je Wesenheit, für die ganze Partie.",
+  law3:"<b>Die Unsterblichkeit</b> — eine Wesenheit kann nie geschlagen werden, ihr Feld nie besetzt.",
+  law4:"<b>Der Pakt</b> — Ω und Ψ können einander nicht schlagen.",
+  law5:"<b>Der Ruf</b> — eine Wesenheit, die auf den gegnerischen König wirkt, bietet Schach, aber nur solange ihr eine Anrufung bleibt.",
+  law6:"<b>Die Einkehr</b> (optional) — nach einem Schlag schweigt die Wesenheit 2 Züge lang: sie schlägt nicht und bietet kein Schach.",
+  law7:"<b>Heilige Raute</b> — e1·a5·e9·i5: die vier Diagonalen der Wesenheiten zeichnen diese Raute. Ω und Ψ stehen sich auf der e-Linie gegenüber, die zum <i>Fegefeuer</i> wird; a5 und i5 sind die beiden Kreuzungen, die von beiden Wesenheiten zugleich beherrscht werden.",
+  law8:"<b>König und Dame flankieren die Wesenheit</b> (d1·e1·f1). Der Erzengel räumt sein Feld: die Armee ist genau die des klassischen Schachs, plus ein 9. Bauer.",
+  law9:"<b>Rochade</b> — nur zur i-Seite: die Wesenheit auf e1 versperrt die lange Rochade endgültig.",
+  law10:"<b>Wächter</b> — jede Wesenheit deckt ihre eigene Grundreihe: Grundreihenmatts sind fast unmöglich, solange ihr eine Anrufung bleibt.",
+  white:"Weiß", black:"Schwarz", whiteAdj:"weißen", blackAdj:"schwarzen",
+  dormant:"Einkehr",
+  checkTitle:"Schach dem {s} König", callNote:"Der Ruf — die gegnerische Wesenheit zielt auf deinen König.",
+  parryNote:"Das Schach muss pariert werden.",
+  turnOf:"{s} am Zug", legalMoves:"{n} legale Züge",
+  mate:"Schachmatt", winnerLine:"{s} gewinnt.",
+  stalemate:"Patt", draw:"Remis.",
+  toastExhausted:"{p} ist erschöpft — keine Anrufung mehr.",
+  toastNoTarget:"{p} hat kein Ziel: alle Wege sind versperrt.",
+  aiThinking:"denkt nach…", aiDepth:"Tiefe {d} · {ms} ms · Bewertung {e}",
+  aiFallback:"Zug von der lokalen Engine gespielt.",
+  aiChosen:"aus {n} Engine-Zügen gewählt (Tiefe {d})",
+  aiAlone:"die Engine hat allein entschieden.", aiTest:"Test…",
+  aiConnected:"Verbindung hergestellt — das Modell schlägt {m} vor.",
+  aiFail:"Fehlgeschlagen: {e}",
+  aiHint:"Starte: llama-server -m modell.gguf --host 127.0.0.1 --port 8080",
+  aiBadReply:"unbrauchbare Antwort: {t}",
+  trainSelf:"Self-Play — Partie {i}/{n} · {k} Stellungen",
+  trainTune:"Abstimmung auf {n} Stellungen…",
+  trainDone:"Gelernt — Fehler {a} → <b>{b}</b> · K={k} · {n} Stellungen.",
+  trainReset:"Ursprungsgewichte wiederhergestellt.", trainImported:"Modell importiert ({n} Gewichte).",
+  trainBadFile:"Datei nicht lesbar.",
+  pSys:"Du bist ein erfahrener Schachspieler in der 9x9-Variante \"Zenith\". Du antwortest AUSSCHLIESSLICH mit einem JSON-Objekt, ohne umgebenden Text.",
+  pRules:"Schachvariante 9x9. Linien a-i, Reihen 1-9.\nFiguren: P Bauer, N Springer, B Läufer, R Turm, Q Dame, K König, A Erzengel (Läufer+Springer).\nGROSSBUCHSTABE = Weiß, Kleinbuchstabe = Schwarz.\nΩ = der Gott (weiße Wesenheit), Ψ = der Teufel (schwarze Wesenheit).\nDie Wesenheiten ZIEHEN NIE und können nicht geschlagen werden. Am Zug kann eine Seite einen Schlag befehlen (notiert Ω*Feld): die Wesenheit schlägt eine gegnerische Figur auf einer ihrer 8 Linien, falls der Weg ganz frei ist, und kehrt sofort zurück. Der Schlag verbraucht den Zug. Jede Wesenheit hat nur eine begrenzte Zahl von Anrufungen, danach ist sie träge.",
+  pPosition:"Stellung:", pTurn:"{s} am Zug.",
+  pCharges:"Verbleibende Anrufungen — Ω: {w}, Ψ: {b}.",
+  pMoves:"Erlaubte Züge (du MUSST einen davon wählen, wortgleich):",
+  pEval:"Engine-Bewertung",
+  pAnswer:`Antworte genau so: {"move": "<ein Zug aus der Liste>", "reason": "<ein kurzer Satz>"}`
+},
+
+es:{
+  docTitle:"Zénith — Ajedrez 9×9 con Entidades",
+  chessTitle:"AJEDREZ 9×9", langLabel:"Idioma",
+  subGod:"Ω EL DIOS EN", subDevil:"Ψ EL DIABLO EN",
+  piece:{P:"Peón",N:"Caballo",B:"Alfil",R:"Torre",Q:"Dama",K:"Rey",A:"Arcángel",G:"Dios",D:"Diablo"},
+  let:{P:"",N:"C",B:"A",R:"T",Q:"D",K:"R",A:"Ar",G:"Ω",D:"Ψ"},
+  cardPosition:"Posición", cardInvocations:"Invocaciones", cardCommands:"Controles",
+  cardOpponent:"Adversario", cardLearning:"Aprendizaje", cardGame:"Partida",
+  invocNote:"Los golpes se cuentan para toda la partida. Agotada o en recogimiento, una entidad ya no golpea ni da jaque.",
+  btnNew:"Nueva partida", btnUndo:"Deshacer", btnRays:"Líneas de fuego", btnFlip:"Girar",
+  labSetup:"Disposición",
+  setupAxe:"Ω e1 · Ψ e9 — el Eje", setupCoeur:"Ω e5 · Ψ i9 — Corazón y Cuerno", setupZenith:"Ω a5 · Ψ i5 — Cénit",
+  labCharges:"Invocaciones Ω / Ψ", labCool:"Recogimiento", coolNote:"2 turnos tras cada golpe",
+  settingsNote:"Los ajustes se aplican a la próxima partida.",
+  labAiSide:"La IA juega", aiNone:"Nadie — 2 jugadores", aiBlack:"Las negras", aiWhite:"Las blancas",
+  labBrain:"Cerebro", brainEngine:"Motor local — alfa-beta",
+  brainOracle:"Oráculo — motor + llama.cpp", brainLlm:"solo llama.cpp",
+  labLevel:"Nivel", lvlNovice:"Novato", lvlAdept:"Adepto", lvlMaster:"Maestro",
+  labServer:"Servidor", labModel:"Modelo", btnTest:"Probar la conexión",
+  learnNote:"El motor juega contra sí mismo y ajusta sus pesos de evaluación. El modelo aprendido (~10 números) se guarda en este navegador.",
+  labGames:"Partidas", btnTrain:"Entrenar", btnWReset:"Reiniciar",
+  btnWExport:"Exportar", btnWImport:"Importar",
+  lawsSummary:"Las leyes", promoTitle:"PROMOCIÓN",
+  law1:"<b>El Golpe fugaz</b> — haz clic en Ω o Ψ: la entidad captura una pieza enemiga en una de sus 8 líneas (el camino debe estar completamente libre) y vuelve al instante. El golpe consume todo tu turno.",
+  law2:"<b>Las Invocaciones</b> — 3 golpes como máximo por entidad, para toda la partida.",
+  law3:"<b>La Inmortalidad</b> — una entidad nunca puede ser capturada, ni su casilla ocupada.",
+  law4:"<b>El Pacto</b> — Ω y Ψ no pueden golpearse entre sí.",
+  law5:"<b>La Llamada</b> — una entidad que apunta al Rey enemigo da jaque, pero solo mientras le quede una Invocación.",
+  law6:"<b>El Recogimiento</b> (opcional) — tras un golpe, la entidad calla durante 2 turnos: no golpea ni da jaque.",
+  law7:"<b>Rombo sagrado</b> — e1·a5·e9·i5: las cuatro diagonales de las entidades dibujan este rombo. Ω y Ψ se enfrentan en la columna e, que se vuelve el <i>Purgatorio</i>; a5 e i5 son los dos cruces batidos por ambas entidades a la vez.",
+  law8:"<b>El Rey y la Dama flanquean a la entidad</b> (d1·e1·f1). El Arcángel cede su casilla: el ejército es el del ajedrez clásico, más un 9.º peón.",
+  law9:"<b>Enroque</b> — solo del lado i: la entidad en e1 cierra definitivamente el enroque largo.",
+  law10:"<b>Centinela</b> — cada entidad cubre su propia primera fila: los mates del pasillo son casi imposibles mientras le quede una Invocación.",
+  white:"blancas", black:"negras", whiteAdj:"blanco", blackAdj:"negro",
+  dormant:"recogimiento",
+  checkTitle:"Jaque al Rey {s}", callNote:"La Llamada — la entidad enemiga apunta a tu Rey.",
+  parryNote:"Hay que parar el jaque.",
+  turnOf:"Juegan las {s}", legalMoves:"{n} jugadas legales",
+  mate:"Jaque mate", winnerLine:"Ganan las {s}.",
+  stalemate:"Ahogado", draw:"Partida en tablas.",
+  toastExhausted:"{p} está agotado — no queda ninguna Invocación.",
+  toastNoTarget:"{p} no tiene objetivo: todas sus vías están bloqueadas.",
+  aiThinking:"pensando…", aiDepth:"profundidad {d} · {ms} ms · evaluación {e}",
+  aiFallback:"jugada realizada por el motor local.",
+  aiChosen:"elegida entre {n} jugadas del motor (profundidad {d})",
+  aiAlone:"el motor ha decidido solo.", aiTest:"prueba…",
+  aiConnected:"Conexión establecida — el modelo propone {m}.",
+  aiFail:"Error: {e}",
+  aiHint:"Ejecuta: llama-server -m modelo.gguf --host 127.0.0.1 --port 8080",
+  aiBadReply:"respuesta inservible: {t}",
+  trainSelf:"Autojuego — partida {i}/{n} · {k} posiciones",
+  trainTune:"Ajuste sobre {n} posiciones…",
+  trainDone:"Aprendido — error {a} → <b>{b}</b> · K={k} · {n} posiciones.",
+  trainReset:"Pesos originales restaurados.", trainImported:"Modelo importado ({n} pesos).",
+  trainBadFile:"Archivo ilegible.",
+  pSys:"Eres un jugador de ajedrez experto en la variante 9x9 «Zénith». Respondes ÚNICAMENTE con un objeto JSON, sin texto alrededor.",
+  pRules:"Variante de ajedrez 9x9. Columnas a-i, filas 1-9.\nPiezas: P peón, N caballo, B alfil, R torre, Q dama, K rey, A arcángel (alfil+caballo).\nMAYÚSCULA = Blancas, minúscula = Negras.\nΩ = el Dios (entidad blanca), Ψ = el Diablo (entidad negra).\nLas entidades NUNCA SE MUEVEN y no pueden ser capturadas. En su turno, un bando puede ordenar un golpe (anotado Ω*casilla): la entidad captura una pieza enemiga en una de sus 8 líneas si el camino está totalmente libre, y vuelve al instante. El golpe consume el turno. Cada entidad solo dispone de un número limitado de Invocaciones; después queda inerte.",
+  pPosition:"Posición:", pTurn:"Juegan las {s}.",
+  pCharges:"Invocaciones restantes — Ω: {w}, Ψ: {b}.",
+  pMoves:"Jugadas permitidas (DEBES elegir una, idéntica):",
+  pEval:"evaluación del motor",
+  pAnswer:`Responde exactamente: {"move": "<una jugada de la lista>", "reason": "<una frase corta>"}`
+},
+
+pt:{
+  docTitle:"Zénith — Xadrez 9×9 com Entidades",
+  chessTitle:"XADREZ 9×9", langLabel:"Idioma",
+  subGod:"Ω O DEUS EM", subDevil:"Ψ O DIABO EM",
+  piece:{P:"Peão",N:"Cavalo",B:"Bispo",R:"Torre",Q:"Dama",K:"Rei",A:"Arcanjo",G:"Deus",D:"Diabo"},
+  let:{P:"",N:"C",B:"B",R:"T",Q:"D",K:"R",A:"A",G:"Ω",D:"Ψ"},
+  cardPosition:"Posição", cardInvocations:"Invocações", cardCommands:"Comandos",
+  cardOpponent:"Adversário", cardLearning:"Aprendizagem", cardGame:"Partida",
+  invocNote:"Os golpes contam para toda a partida. Esgotada ou em recolhimento, uma entidade deixa de golpear e de dar xeque.",
+  btnNew:"Nova partida", btnUndo:"Desfazer", btnRays:"Linhas de fogo", btnFlip:"Virar",
+  labSetup:"Disposição",
+  setupAxe:"Ω e1 · Ψ e9 — o Eixo", setupCoeur:"Ω e5 · Ψ i9 — Coração e Chifre", setupZenith:"Ω a5 · Ψ i5 — Zénite",
+  labCharges:"Invocações Ω / Ψ", labCool:"Recolhimento", coolNote:"2 turnos após cada golpe",
+  settingsNote:"As definições aplicam-se à próxima partida.",
+  labAiSide:"A IA joga", aiNone:"Ninguém — 2 jogadores", aiBlack:"As pretas", aiWhite:"As brancas",
+  labBrain:"Cérebro", brainEngine:"Motor local — alfa-beta",
+  brainOracle:"Oráculo — motor + llama.cpp", brainLlm:"só llama.cpp",
+  labLevel:"Nível", lvlNovice:"Novato", lvlAdept:"Adepto", lvlMaster:"Mestre",
+  labServer:"Servidor", labModel:"Modelo", btnTest:"Testar a ligação",
+  learnNote:"O motor joga contra si próprio e ajusta os seus pesos de avaliação. O modelo aprendido (~10 números) fica guardado neste navegador.",
+  labGames:"Partidas", btnTrain:"Treinar", btnWReset:"Repor",
+  btnWExport:"Exportar", btnWImport:"Importar",
+  lawsSummary:"As leis", promoTitle:"PROMOÇÃO",
+  law1:"<b>O Golpe fugaz</b> — clica em Ω ou Ψ: a entidade captura uma peça inimiga numa das suas 8 linhas (o caminho deve estar totalmente livre) e regressa de imediato. O golpe consome todo o teu turno.",
+  law2:"<b>As Invocações</b> — no máximo 3 golpes por entidade, para toda a partida.",
+  law3:"<b>A Imortalidade</b> — uma entidade nunca pode ser capturada, nem a sua casa ocupada.",
+  law4:"<b>O Pacto</b> — Ω e Ψ não podem golpear-se uma à outra.",
+  law5:"<b>O Chamado</b> — uma entidade que mira o Rei inimigo dá xeque, mas só enquanto lhe restar uma Invocação.",
+  law6:"<b>O Recolhimento</b> (opcional) — após um golpe, a entidade cala-se durante 2 turnos: não golpeia nem dá xeque.",
+  law7:"<b>Losango sagrado</b> — e1·a5·e9·i5: as quatro diagonais das entidades desenham este losango. Ω e Ψ enfrentam-se na coluna e, que se torna o <i>Purgatório</i>; a5 e i5 são os dois cruzamentos batidos pelas duas entidades ao mesmo tempo.",
+  law8:"<b>O Rei e a Dama ladeiam a entidade</b> (d1·e1·f1). O Arcanjo cede a sua casa: o exército é o do xadrez clássico, mais um 9.º peão.",
+  law9:"<b>Roque</b> — apenas do lado i: a entidade em e1 fecha definitivamente o roque grande.",
+  law10:"<b>Sentinela</b> — cada entidade cobre a sua própria primeira fila: os mates do corredor são quase impossíveis enquanto lhe restar uma Invocação.",
+  white:"brancas", black:"pretas", whiteAdj:"branco", blackAdj:"preto",
+  dormant:"recolhimento",
+  checkTitle:"Xeque ao Rei {s}", callNote:"O Chamado — a entidade inimiga mira o teu Rei.",
+  parryNote:"É preciso responder ao xeque.",
+  turnOf:"Jogam as {s}", legalMoves:"{n} lances legais",
+  mate:"Xeque-mate", winnerLine:"As {s} vencem.",
+  stalemate:"Afogado", draw:"Partida empatada.",
+  toastExhausted:"{p} está esgotado — não resta nenhuma Invocação.",
+  toastNoTarget:"{p} não tem alvo: todas as suas vias estão bloqueadas.",
+  aiThinking:"a pensar…", aiDepth:"profundidade {d} · {ms} ms · avaliação {e}",
+  aiFallback:"lance jogado pelo motor local.",
+  aiChosen:"escolhido entre {n} lances do motor (profundidade {d})",
+  aiAlone:"o motor decidiu sozinho.", aiTest:"teste…",
+  aiConnected:"Ligação estabelecida — o modelo propõe {m}.",
+  aiFail:"Falhou: {e}",
+  aiHint:"Executa: llama-server -m modelo.gguf --host 127.0.0.1 --port 8080",
+  aiBadReply:"resposta inutilizável: {t}",
+  trainSelf:"Autojogo — partida {i}/{n} · {k} posições",
+  trainTune:"Ajuste sobre {n} posições…",
+  trainDone:"Aprendido — erro {a} → <b>{b}</b> · K={k} · {n} posições.",
+  trainReset:"Pesos originais restaurados.", trainImported:"Modelo importado ({n} pesos).",
+  trainBadFile:"Ficheiro ilegível.",
+  pSys:"És um jogador de xadrez experiente na variante 9x9 «Zénith». Respondes APENAS com um objeto JSON, sem texto à volta.",
+  pRules:"Variante de xadrez 9x9. Colunas a-i, filas 1-9.\nPeças: P peão, N cavalo, B bispo, R torre, Q dama, K rei, A arcanjo (bispo+cavalo).\nMAIÚSCULA = Brancas, minúscula = Pretas.\nΩ = o Deus (entidade branca), Ψ = o Diabo (entidade preta).\nAs entidades NUNCA SE MOVEM e não podem ser capturadas. Na sua vez, um lado pode ordenar um golpe (anotado Ω*casa): a entidade captura uma peça inimiga numa das suas 8 linhas se o caminho estiver totalmente livre, e regressa de imediato. O golpe consome o turno. Cada entidade tem apenas um número limitado de Invocações; depois fica inerte.",
+  pPosition:"Posição:", pTurn:"Jogam as {s}.",
+  pCharges:"Invocações restantes — Ω: {w}, Ψ: {b}.",
+  pMoves:"Lances permitidos (TENS de escolher um, idêntico):",
+  pEval:"avaliação do motor",
+  pAnswer:`Responde exatamente: {"move": "<um lance da lista>", "reason": "<uma frase curta>"}`
+},
+
+it:{
+  docTitle:"Zénith — Scacchi 9×9 con le Entità",
+  chessTitle:"SCACCHI 9×9", langLabel:"Lingua",
+  subGod:"Ω IL DIO IN", subDevil:"Ψ IL DIAVOLO IN",
+  piece:{P:"Pedone",N:"Cavallo",B:"Alfiere",R:"Torre",Q:"Donna",K:"Re",A:"Arcangelo",G:"Dio",D:"Diavolo"},
+  let:{P:"",N:"C",B:"A",R:"T",Q:"D",K:"R",A:"Ar",G:"Ω",D:"Ψ"},
+  cardPosition:"Posizione", cardInvocations:"Invocazioni", cardCommands:"Comandi",
+  cardOpponent:"Avversario", cardLearning:"Apprendimento", cardGame:"Partita",
+  invocNote:"I colpi valgono per tutta la partita. Esaurita o in raccoglimento, un'entità non colpisce più e non dà più scacco.",
+  btnNew:"Nuova partita", btnUndo:"Annulla", btnRays:"Linee di fuoco", btnFlip:"Ruota",
+  labSetup:"Disposizione",
+  setupAxe:"Ω e1 · Ψ e9 — l'Asse", setupCoeur:"Ω e5 · Ψ i9 — Cuore e Corno", setupZenith:"Ω a5 · Ψ i5 — Zenit",
+  labCharges:"Invocazioni Ω / Ψ", labCool:"Raccoglimento", coolNote:"2 turni dopo ogni colpo",
+  settingsNote:"Le impostazioni valgono dalla prossima partita.",
+  labAiSide:"L'IA gioca", aiNone:"Nessuno — 2 giocatori", aiBlack:"Il Nero", aiWhite:"Il Bianco",
+  labBrain:"Cervello", brainEngine:"Motore locale — alfa-beta",
+  brainOracle:"Oracolo — motore + llama.cpp", brainLlm:"solo llama.cpp",
+  labLevel:"Livello", lvlNovice:"Novizio", lvlAdept:"Adepto", lvlMaster:"Maestro",
+  labServer:"Server", labModel:"Modello", btnTest:"Prova la connessione",
+  learnNote:"Il motore gioca contro sé stesso e regola i suoi pesi di valutazione. Il modello appreso (~10 numeri) resta in questo browser.",
+  labGames:"Partite", btnTrain:"Allena", btnWReset:"Ripristina",
+  btnWExport:"Esporta", btnWImport:"Importa",
+  lawsSummary:"Le leggi", promoTitle:"PROMOZIONE",
+  law1:"<b>Il Colpo fugace</b> — clicca su Ω o Ψ: l'entità cattura un pezzo avversario su una delle sue 8 linee (la via dev'essere del tutto libera), poi torna subito indietro. Il colpo consuma l'intero turno.",
+  law2:"<b>Le Invocazioni</b> — al massimo 3 colpi per entità, per tutta la partita.",
+  law3:"<b>L'Immortalità</b> — un'entità non può mai essere catturata, né la sua casa occupata.",
+  law4:"<b>Il Patto</b> — Ω e Ψ non possono colpirsi a vicenda.",
+  law5:"<b>Il Richiamo</b> — un'entità che punta il Re avversario dà scacco, ma solo finché le resta un'Invocazione.",
+  law6:"<b>Il Raccoglimento</b> (facoltativo) — dopo un colpo l'entità tace per 2 turni: non colpisce e non dà scacco.",
+  law7:"<b>Rombo sacro</b> — e1·a5·e9·i5: le quattro diagonali delle entità disegnano questo rombo. Ω e Ψ si fronteggiano sulla colonna e, che diventa il <i>Purgatorio</i>; a5 e i5 sono i due incroci battuti da entrambe le entità insieme.",
+  law8:"<b>Il Re e la Donna affiancano l'entità</b> (d1·e1·f1). L'Arcangelo cede la sua casa: l'esercito è quello degli scacchi classici, più un 9º pedone.",
+  law9:"<b>Arrocco</b> — solo dal lato i: l'entità in e1 mura definitivamente l'arrocco lungo.",
+  law10:"<b>Sentinella</b> — ogni entità copre la propria prima traversa: i matti del corridoio sono quasi impossibili finché le resta un'Invocazione.",
+  white:"Bianco", black:"Nero", whiteAdj:"bianco", blackAdj:"nero",
+  dormant:"raccoglimento",
+  checkTitle:"Scacco al Re {s}", callNote:"Il Richiamo — l'entità avversaria punta il tuo Re.",
+  parryNote:"Bisogna parare lo scacco.",
+  turnOf:"Tocca al {s}", legalMoves:"{n} mosse legali",
+  mate:"Scacco matto", winnerLine:"Il {s} vince.",
+  stalemate:"Stallo", draw:"Partita patta.",
+  toastExhausted:"{p} è esausto — nessuna Invocazione rimasta.",
+  toastNoTarget:"{p} non ha bersagli: tutte le sue vie sono ostruite.",
+  aiThinking:"sto pensando…", aiDepth:"profondità {d} · {ms} ms · valutazione {e}",
+  aiFallback:"mossa giocata dal motore locale.",
+  aiChosen:"scelta fra {n} mosse del motore (profondità {d})",
+  aiAlone:"il motore ha deciso da solo.", aiTest:"prova…",
+  aiConnected:"Connessione stabilita — il modello propone {m}.",
+  aiFail:"Fallito: {e}",
+  aiHint:"Esegui: llama-server -m modello.gguf --host 127.0.0.1 --port 8080",
+  aiBadReply:"risposta inutilizzabile: {t}",
+  trainSelf:"Self-play — partita {i}/{n} · {k} posizioni",
+  trainTune:"Taratura su {n} posizioni…",
+  trainDone:"Appreso — errore {a} → <b>{b}</b> · K={k} · {n} posizioni.",
+  trainReset:"Pesi originali ripristinati.", trainImported:"Modello importato ({n} pesi).",
+  trainBadFile:"File illeggibile.",
+  pSys:"Sei un giocatore di scacchi esperto nella variante 9x9 «Zénith». Rispondi SOLTANTO con un oggetto JSON, senza testo attorno.",
+  pRules:"Variante di scacchi 9x9. Colonne a-i, traverse 1-9.\nPezzi: P pedone, N cavallo, B alfiere, R torre, Q donna, K re, A arcangelo (alfiere+cavallo).\nMAIUSCOLO = Bianco, minuscolo = Nero.\nΩ = il Dio (entità bianca), Ψ = il Diavolo (entità nera).\nLe entità NON SI MUOVONO MAI e non possono essere catturate. Al proprio turno un colore può ordinare un colpo (notato Ω*casa): l'entità cattura un pezzo avversario su una delle sue 8 linee se la via è del tutto libera, poi torna subito. Il colpo consuma il turno. Ogni entità dispone solo di un numero limitato di Invocazioni; poi resta inerte.",
+  pPosition:"Posizione:", pTurn:"Tocca al {s}.",
+  pCharges:"Invocazioni rimaste — Ω: {w}, Ψ: {b}.",
+  pMoves:"Mosse consentite (DEVI sceglierne una, identica):",
+  pEval:"valutazione del motore",
+  pAnswer:`Rispondi esattamente: {"move": "<una mossa della lista>", "reason": "<una frase breve>"}`
+}
+
+};
+
+/* ---- sélection de la langue --------------------------------- */
+const LANGS = ["fr","en","de","es","pt","it"];
+
+function detectLang(){
+  try{
+    const saved = localStorage.getItem("zenith-lang");
+    if(saved && I18N[saved]) return saved;
+  }catch(_){}
+  const navs = (navigator.languages && navigator.languages.length)
+             ? navigator.languages : [navigator.language || "fr"];
+  for(const l of navs){
+    const code = String(l).slice(0,2).toLowerCase();
+    if(I18N[code]) return code;
+  }
+  return "fr";
+}
+
+let LANG = detectLang();
+
+/* i18t("clé", {sub}) — repli sur le français si la clé manque */
+function i18t(key, vars){
+  let s = I18N[LANG][key];
+  if(s === undefined) s = I18N.fr[key];
+  if(s === undefined) return key;
+  if(vars) for(const k in vars) s = s.split("{" + k + "}").join(vars[k]);
+  return s;
+}
+
+/* Tables dépendantes de la langue : notation et noms de pièces.
+   Réaffectées à chaque changement (jamais const). */
+let LET  = I18N[LANG].let;
+let NAME = I18N[LANG].piece;
+
+function applyI18n(){
+  const D = I18N[LANG];
+  LET  = D.let  || I18N.fr.let;
+  NAME = D.piece || I18N.fr.piece;
+  document.documentElement.lang = LANG;
+  document.title = i18t("docTitle");
+  document.querySelectorAll("[data-i18n]").forEach(el => {
+    el.textContent = i18t(el.getAttribute("data-i18n"));
+  });
+  document.querySelectorAll("[data-i18n-html]").forEach(el => {
+    el.innerHTML = i18t(el.getAttribute("data-i18n-html"));
+  });
+}
+
+function setLang(code){
+  if(!I18N[code]) return;
+  LANG = code;
+  try{ localStorage.setItem("zenith-lang", code); }catch(_){}
+  applyI18n();
+  relabelMoves();     // renote la partie en cours dans la nouvelle langue
+  refreshSubtitle();
+  render();
+}
+
+
+/* ============================================================
+   ZÉNITH — moteur
+   Plateau 9x9 : f = 0..8 (a..i), r = 0..8 (rangées 1..9)
+   Pièces : P N B R Q K A (archange = fou+cavalier)
+            G = Dieu (blanc, a5)   D = Diable (noir, i5)
+   ============================================================ */
+const FILES = "abcdefghi";
+const GLYPH = {P:"♟",N:"♞",B:"♝",R:"♜",Q:"♛",K:"♚",A:"⚜",G:"Ω",D:"Ψ"};
+/* LET et NAME sont définis par la table i18n, plus haut. */
+
+const ROOK_D   = [[1,0],[-1,0],[0,1],[0,-1]];
+const BISH_D   = [[1,1],[1,-1],[-1,1],[-1,-1]];
+const ALL_D    = ROOK_D.concat(BISH_D);
+const KNIGHT_D = [[1,2],[2,1],[2,-1],[1,-2],[-1,-2],[-2,-1],[-2,1],[-1,2]];
+const PROMOS   = ["Q","A","R","B","N"];
+
+const on   = (f,r) => f>=0 && f<9 && r>=0 && r<9;
+const name = (f,r) => FILES[f] + (r+1);
+const foe  = c => c === "w" ? "b" : "w";
+const isEntity = p => p && (p.t === "G" || p.t === "D");
+/* Copie d'état rapide (la recherche en fait des dizaines de milliers).
+   Les objets pièce ne sont jamais mutés : partager leurs références est sûr. */
+function clone(s){
+  const b = new Array(9);
+  for(let r=0; r<9; r++) b[r] = s.board[r].slice();
+  return {
+    board:b, turn:s.turn,
+    charges:{w:s.charges.w, b:s.charges.b}, maxCharges:s.maxCharges,
+    dormant:{w:s.dormant.w, b:s.dormant.b},
+    rules:s.rules, kingFile:s.kingFile,
+    ep: s.ep ? {f:s.ep.f, r:s.ep.r} : null,
+    moved:{wK:s.moved.wK, wRa:s.moved.wRa, wRi:s.moved.wRi,
+           bK:s.moved.bK, bRa:s.moved.bRa, bRi:s.moved.bRi}
+  };
+}
+
+/* Mises en place. Une entité écrase l'occupant de sa case : la pièce est
+   retirée du jeu (ne jamais placer une entité sur la case d'un Roi). */
+const SETUPS = {
+  axe: {                                           // Ω e1 · Ψ e9  (défaut)
+    sub:"Ω LE DIEU EN e1 · Ψ LE DIABLE EN e9",
+    god:{f:4,r:0}, devil:{f:4,r:8}, kingFile:5, cooldown:false,
+    // Le Roi et la Dame encadrent l'entité. L'Archange cède sa case :
+    // l'armée redevient exactement celle des échecs classiques, plus un 9e pion.
+    white:["R","N","B","Q",".","K","B","N","R"],   // e1 → Ω, Roi en f1
+    black:["R","N","B","Q",".","K","B","N","R"]    // e9 → Ψ, Roi en f9  (miroir)
+  },
+  coeur: {                                         // Ω e5 · Ψ i9
+    sub:"Ω LE DIEU EN e5 · Ψ LE DIABLE EN i9",
+    god:{f:4,r:4}, devil:{f:8,r:8}, kingFile:4, cooldown:true,
+    white:["R","N","B","Q","K","A","B","N","R"],   // a1 .. i1
+    black:["R","N","B","Q","K","A","B","N","R"]    // a9 .. i9 (i9 → Ψ)
+  },
+  zenith: {                                        // Ω a5 · Ψ i5  (v1)
+    sub:"Ω LE DIEU EN a5 · Ψ LE DIABLE EN i5",
+    god:{f:0,r:4}, devil:{f:8,r:4}, kingFile:4, cooldown:false,
+    white:["R","N","B","Q","K","A","B","N","R"],
+    black:["R","N","B","A","K","Q","B","N","R"]    // rotation 180°
+  }
+};
+function newState(key, opts){
+  const cfg = SETUPS[key] || SETUPS.axe;
+  const o = Object.assign({chW:3, chB:3, cooldown:2}, opts || {});
+  const b = Array.from({length:9}, () => Array(9).fill(null));
+  for(let f=0; f<9; f++){
+    if(cfg.white[f] !== ".") b[0][f] = {t:cfg.white[f], c:"w"};
+    if(cfg.black[f] !== ".") b[8][f] = {t:cfg.black[f], c:"b"};
+    b[1][f] = {t:"P", c:"w"};
+    b[7][f] = {t:"P", c:"b"};
+  }
+  b[cfg.god.r][cfg.god.f]     = {t:"G", c:"w"};
+  b[cfg.devil.r][cfg.devil.f] = {t:"D", c:"b"};
+  return {
+    board:b, turn:"w", charges:{w:o.chW, b:o.chB}, maxCharges:{w:o.chW, b:o.chB},
+    dormant:{w:0,b:0},
+    rules:{cooldown:o.cooldown}, kingFile:cfg.kingFile, ep:null,
+    moved:{wK:false,wRa:false,wRi:false,bK:false,bRa:false,bRi:false}
+  };
+}
+
+/* ---------- génération des coups ---------- */
+function canLand(q, c){ return !q || (q.c !== c && !isEntity(q)); }
+
+function slide(st, f, r, c, dirs, out){
+  for(const [df,dr] of dirs){
+    let ff = f+df, rr = r+dr;
+    while(on(ff,rr)){
+      const q = st.board[rr][ff];
+      if(q){ if(canLand(q,c)) out.push({type:"move",from:{f,r},to:{f:ff,r:rr}}); break; }
+      out.push({type:"move",from:{f,r},to:{f:ff,r:rr}});
+      ff += df; rr += dr;
+    }
+  }
+}
+function step(st, f, r, c, dirs, out){
+  for(const [df,dr] of dirs){
+    const ff = f+df, rr = r+dr;
+    if(on(ff,rr) && canLand(st.board[rr][ff], c))
+      out.push({type:"move",from:{f,r},to:{f:ff,r:rr}});
+  }
+}
+function pawnMoves(st, f, r, c, out){
+  const dir = c === "w" ? 1 : -1;
+  const start = c === "w" ? 1 : 7;
+  const last  = c === "w" ? 8 : 0;
+  const push = (ff,rr) => {
+    if(rr === last) for(const p of PROMOS) out.push({type:"move",from:{f,r},to:{f:ff,r:rr},promo:p});
+    else out.push({type:"move",from:{f,r},to:{f:ff,r:rr}});
+  };
+  if(on(f,r+dir) && !st.board[r+dir][f]){
+    push(f, r+dir);
+    if(r === start && !st.board[r+2*dir][f])
+      out.push({type:"move",from:{f,r},to:{f,r:r+2*dir},dbl:true});
+  }
+  for(const df of [-1,1]){
+    const ff = f+df, rr = r+dir;
+    if(!on(ff,rr)) continue;
+    const q = st.board[rr][ff];
+    if(q && q.c !== c && !isEntity(q)) push(ff,rr);
+    else if(!q && st.ep && st.ep.f === ff && st.ep.r === rr)
+      out.push({type:"move",from:{f,r},to:{f:ff,r:rr},enp:true});
+  }
+}
+function strikeMoves(st, f, r, c, out){
+  if(st.charges[c] <= 0) return;                 // loi 2 : Invocations épuisées
+  if(st.dormant[c] > 0) return;                  // loi 6 : Recueillement
+  for(const [df,dr] of ALL_D){
+    let ff = f+df, rr = r+dr;
+    while(on(ff,rr)){
+      const q = st.board[rr][ff];
+      if(q){                                     // première pièce rencontrée
+        if(q.c !== c && !isEntity(q))            // loi 4 : le Pacte
+          out.push({type:"strike",from:{f,r},to:{f:ff,r:rr}});
+        break;                                   // la voie doit être dégagée
+      }
+      ff += df; rr += dr;
+    }
+  }
+}
+/* Roque généralisé : le Roi fait 2 cases vers la Tour, la Tour se pose
+   juste derrière lui. Si une entité occupe une case du chemin (Ω en e1),
+   ce côté devient définitivement impossible. */
+function castleMoves(st, c, out){
+  const r = c === "w" ? 0 : 8;
+  const kf = st.kingFile;
+  const k = st.board[r][kf];
+  if(!k || k.t !== "K" || k.c !== c || st.moved[c+"K"]) return;
+  const o = foe(c);
+  if(attacked(st, kf, r, o)) return;
+  const between = (a,b) => { const l=[]; for(let x=Math.min(a,b); x<=Math.max(a,b); x++) l.push(x); return l; };
+  const try_ = (side, rookF, flag) => {
+    if(st.moved[flag]) return;
+    const rook = st.board[r][rookF];
+    if(!rook || rook.t !== "R" || rook.c !== c) return;
+    const dir = rookF > kf ? 1 : -1;
+    for(const x of between(kf+dir, rookF-dir)) if(st.board[r][x]) return;   // chemin libre
+    const kTo = kf + 2*dir;
+    if(attacked(st, kf+dir, r, o) || attacked(st, kTo, r, o)) return;      // pas de traversée d'échec
+    out.push({type:"castle", side, from:{f:kf,r}, to:{f:kTo,r}});
+  };
+  try_("K", 8, c+"Ri");
+  try_("Q", 0, c+"Ra");
+}
+function pseudoMoves(st, c, noCastle){
+  const out = [];
+  for(let r=0; r<9; r++) for(let f=0; f<9; f++){
+    const p = st.board[r][f];
+    if(!p || p.c !== c) continue;
+    switch(p.t){
+      case "P": pawnMoves(st,f,r,c,out); break;
+      case "N": step(st,f,r,c,KNIGHT_D,out); break;
+      case "B": slide(st,f,r,c,BISH_D,out); break;
+      case "R": slide(st,f,r,c,ROOK_D,out); break;
+      case "Q": slide(st,f,r,c,ALL_D,out); break;
+      case "K": step(st,f,r,c,ALL_D,out); break;
+      case "A": slide(st,f,r,c,BISH_D,out); step(st,f,r,c,KNIGHT_D,out); break;
+      case "G": case "D": strikeMoves(st,f,r,c,out); break;
+    }
+  }
+  if(!noCastle) castleMoves(st,c,out);
+  return out;
+}
+
+/* ---------- attaques / échec ---------- */
+function attacked(st, f, r, by){
+  const b = st.board;
+  // pions
+  const dir = by === "w" ? 1 : -1;
+  for(const df of [-1,1]){
+    const q = on(f+df, r-dir) ? b[r-dir][f+df] : null;
+    if(q && q.c === by && q.t === "P") return true;
+  }
+  // cavaliers + archange (partie cavalier)
+  for(const [df,dr] of KNIGHT_D){
+    const q = on(f+df,r+dr) ? b[r+dr][f+df] : null;
+    if(q && q.c === by && (q.t === "N" || q.t === "A")) return true;
+  }
+  // roi
+  for(const [df,dr] of ALL_D){
+    const q = on(f+df,r+dr) ? b[r+dr][f+df] : null;
+    if(q && q.c === by && q.t === "K") return true;
+  }
+  // glissants
+  const scan = (dirs, types) => {
+    for(const [df,dr] of dirs){
+      let ff = f+df, rr = r+dr;
+      while(on(ff,rr)){
+        const q = b[rr][ff];
+        if(q){ if(q.c === by && types.includes(q.t)) return true; break; }
+        ff += df; rr += dr;
+      }
+    }
+    return false;
+  };
+  if(scan(ROOK_D, ["R","Q"])) return true;
+  if(scan(BISH_D, ["B","Q","A"])) return true;
+  // entité : seulement si elle peut réellement frapper (lois 5 et 6)
+  if(st.charges[by] > 0 && st.dormant[by] === 0 && entityStrikesSquare(st, by, f, r)) return true;
+  return false;
+}
+function findEntity(st, c){
+  const t = c === "w" ? "G" : "D";
+  for(let r=0; r<9; r++) for(let f=0; f<9; f++){
+    const p = st.board[r][f];
+    if(p && p.t === t && p.c === c) return {f,r};
+  }
+  return null;
+}
+function entityStrikesSquare(st, c, tf, tr){
+  const e = findEntity(st, c);
+  if(!e) return false;
+  for(const [df,dr] of ALL_D){
+    let ff = e.f+df, rr = e.r+dr;
+    while(on(ff,rr)){
+      if(ff === tf && rr === tr) return true;
+      if(st.board[rr][ff]) break;         // voie obstruée
+      ff += df; rr += dr;
+    }
+  }
+  return false;
+}
+function kingSq(st, c){
+  for(let r=0; r<9; r++) for(let f=0; f<9; f++){
+    const p = st.board[r][f];
+    if(p && p.t === "K" && p.c === c) return {f,r};
+  }
+  return null;
+}
+function inCheck(st, c){
+  const k = kingSq(st, c);
+  return k ? attacked(st, k.f, k.r, foe(c)) : false;
+}
+
+/* ---------- exécution ---------- */
+function applyMove(st, mv){
+  const s = clone(st), b = s.board, c = st.turn;
+  s.ep = null;
+  if(mv.type === "strike"){
+    b[mv.to.r][mv.to.f] = null;      // la pièce disparaît, l'entité ne bouge pas
+    s.charges[c]--;
+    s.dormant[c] = s.rules.cooldown; // l'entité se recueille
+  } else if(mv.type === "castle"){
+    const r = mv.from.r, k0 = mv.from.f;
+    const dir = mv.side === "K" ? 1 : -1;
+    const kTo = k0 + 2*dir, rTo = k0 + dir, rookFrom = mv.side === "K" ? 8 : 0;
+    b[r][kTo] = b[r][k0]; b[r][k0] = null;
+    b[r][rTo] = b[r][rookFrom]; b[r][rookFrom] = null;
+    s.moved[c+"K"] = true;
+    s.moved[c + (mv.side === "K" ? "Ri" : "Ra")] = true;
+  } else {
+    const p = b[mv.from.r][mv.from.f];
+    if(mv.enp) b[mv.from.r][mv.to.f] = null;                 // prise en passant
+    b[mv.from.r][mv.from.f] = null;
+    b[mv.to.r][mv.to.f] = {t: mv.promo || p.t, c:p.c};
+    if(mv.dbl) s.ep = {f:mv.to.f, r:(mv.from.r + mv.to.r)/2};
+    if(p.t === "K") s.moved[c+"K"] = true;
+    if(p.t === "R" && mv.from.r === (c === "w" ? 0 : 8)){
+      if(mv.from.f === 0) s.moved[c+"Ra"] = true;
+      if(mv.from.f === 8) s.moved[c+"Ri"] = true;
+    }
+  }
+  s.turn = foe(c);
+  if(s.dormant[s.turn] > 0) s.dormant[s.turn]--;   // un tour de recueillement s'écoule
+  return s;
+}
+function legalMoves(st){
+  const c = st.turn;
+  return pseudoMoves(st, c).filter(mv => !inCheck(applyMove(st, mv), c));
+}
+
+/* ---------- notation ---------- */
+function moveText(st, mv){
+  if(mv.type === "castle") return mv.side === "K" ? "O-O" : "O-O-O";
+  const p = st.board[mv.from.r][mv.from.f];
+  if(mv.type === "strike") return LET[p.t] + "*" + name(mv.to.f, mv.to.r);
+  const cap = st.board[mv.to.r][mv.to.f] || mv.enp;
+  let s = LET[p.t] + name(mv.from.f, mv.from.r) + (cap ? "x" : "-") + name(mv.to.f, mv.to.r);
+  if(mv.promo) s += "=" + LET[mv.promo];
+  if(mv.enp) s += "e.p.";
+  return s;
+}
+
+/* ============================================================
+   Interface
+   ============================================================ */
+const boardEl = document.getElementById("board");
+const statusEl = document.getElementById("status");
+const movesEl = document.getElementById("moves");
+const promoEl = document.getElementById("promo");
+const toastEl = document.getElementById("toast");
+
+let st, history, texts, played, sel, moves, last, flipped = false, showRays = false, over = null;
+
+/* renote toute la partie dans la langue courante */
+function relabelMoves(){
+  if(!played) return;
+  texts = played.map((x,i) => moveText(history[i], x.move) + x.sfx);
+}
+
+// remplit les sélecteurs d'Invocations (0 à 5)
+for(const id of ["sel-chw","sel-chb"]){
+  const s = document.getElementById(id);
+  for(let i=0; i<=5; i++){
+    const o = document.createElement("option");
+    o.value = i; o.textContent = i; if(i === 3) o.selected = true;
+    s.appendChild(o);
+  }
+}
+
+/* sous-titre et étiquettes des entités, dans la langue courante */
+function refreshSubtitle(){
+  const cfg = SETUPS[document.getElementById("setup").value] || SETUPS.axe;
+  const gs = name(cfg.god.f, cfg.god.r), ds = name(cfg.devil.f, cfg.devil.r);
+  document.getElementById("subtitle").textContent =
+    i18t("chessTitle") + " — " + i18t("subGod") + " " + gs + " · " + i18t("subDevil") + " " + ds;
+  document.getElementById("nw").textContent = "Ω  " + NAME.G + " (" + gs + ")";
+  document.getElementById("nb").textContent = "Ψ  " + NAME.D + " (" + ds + ")";
+}
+
+function reset(){
+  const key = document.getElementById("setup").value;
+  st = newState(key, {
+    chW: +document.getElementById("sel-chw").value,
+    chB: +document.getElementById("sel-chb").value,
+    cooldown: document.getElementById("cool").checked ? 2 : 0
+  });
+  refreshSubtitle();
+  history = []; texts = []; played = []; sel = null; last = null; over = null;
+  moves = legalMoves(st);
+  render();
+  if(typeof maybeAI === "function") maybeAI();
+}
+function toast(msg){
+  toastEl.textContent = msg; toastEl.classList.add("show");
+  clearTimeout(toast._t); toast._t = setTimeout(() => toastEl.classList.remove("show"), 2200);
+}
+
+/* cases sous le feu d'une entité (voie dégagée), pour l'affichage */
+function rayMap(){
+  const map = {};
+  for(const c of ["w","b"]){
+    if(st.charges[c] <= 0) continue;
+    const e = findEntity(st, c);
+    if(!e) continue;
+    for(const [df,dr] of ALL_D){
+      let ff = e.f+df, rr = e.r+dr;
+      while(on(ff,rr)){
+        const q = st.board[rr][ff];
+        // la case du bloqueur n'est éclairée que si c'est une cible frappable
+        if(q && (q.c === c || isEntity(q))) break;
+        const k = ff + "," + rr;
+        map[k] = map[k] ? "wb" : c;
+        if(q) break;
+        ff += df; rr += dr;
+      }
+    }
+  }
+  return map;
+}
+
+function render(){
+  boardEl.innerHTML = "";
+  const rays = showRays ? rayMap() : {};
+  const selMoves = sel ? moves.filter(m => m.from.f === sel.f && m.from.r === sel.r) : [];
+  const checkColor = over ? null : (inCheck(st, st.turn) ? st.turn : null);
+  const ck = checkColor ? kingSq(st, checkColor) : null;
+
+  const ranks = flipped ? [...Array(9).keys()] : [...Array(9).keys()].reverse();
+  const files = flipped ? [...Array(9).keys()].reverse() : [...Array(9).keys()];
+
+  for(const r of ranks) for(const f of files){
+    const d = document.createElement("div");
+    d.className = "sq " + ((f + r) % 2 ? "light" : "dark");
+    const p = st.board[r][f];
+
+    const ray = rays[f + "," + r];
+    if(ray) d.classList.add("ray-" + ray);
+    if(last && ((last.from.f === f && last.from.r === r) || (last.to.f === f && last.to.r === r)))
+      d.classList.add("last");
+    if(ck && ck.f === f && ck.r === r) d.classList.add("check");
+    if(sel && sel.f === f && sel.r === r) d.classList.add("sel");
+
+    const mv = selMoves.find(m => m.to.f === f && m.to.r === r);
+    if(mv){
+      if(mv.type === "strike"){
+        d.classList.add("striketarget");
+        const b = document.createElement("span"); b.className = "bolt"; b.textContent = "⚡";
+        d.appendChild(b);
+      } else {
+        d.classList.add("dest");
+        if(p || mv.enp) d.classList.add("capt");
+      }
+      d.classList.add("clickable");
+    } else if(!over && p && p.c === st.turn && moves.some(m => m.from.f === f && m.from.r === r)){
+      d.classList.add("clickable");
+    }
+
+    if(f === (flipped ? 8 : 0)){
+      const l = document.createElement("span"); l.className = "lbl rank"; l.textContent = r+1; d.appendChild(l);
+    }
+    if(r === (flipped ? 8 : 0)){
+      const l = document.createElement("span"); l.className = "lbl file"; l.textContent = FILES[f]; d.appendChild(l);
+    }
+    if(p){
+      const g = document.createElement("span");
+      g.className = "pc " + p.c + (isEntity(p) ? " entity" : "");
+      g.textContent = GLYPH[p.t];
+      g.title = NAME[p.t];
+      d.appendChild(g);
+    }
+    d.dataset.f = f; d.dataset.r = r;
+    boardEl.appendChild(d);
+  }
+
+  // invocations
+  for(const [id,c] of [["chw","w"],["chb","b"]]){
+    const el = document.getElementById(id); el.innerHTML = "";
+    for(let i=0; i<st.maxCharges[c]; i++){
+      const s = document.createElement("span");
+      s.className = "dot " + (i < st.charges[c] ? "on " + c : "off");
+      el.appendChild(s);
+    }
+    if(st.dormant[c] > 0){
+      const d = document.createElement("span");
+      d.className = "dorm";
+      d.textContent = i18t("dormant") + " · " + st.dormant[c];
+      el.appendChild(d);
+    }
+  }
+
+  // statut
+  const side = st.turn === "w" ? i18t("white") : i18t("black");
+  const cls  = st.turn === "w" ? "gold" : "crim";
+  if(over){
+    statusEl.innerHTML = over.mate
+      ? `<span class="big ${over.cls}">` + i18t("mate") + `</span><span class="dimtxt">` +
+        i18t("winnerLine", {s: over.win === "w" ? i18t("white") : i18t("black")}) + `</span>`
+      : `<span class="big">` + i18t("stalemate") + `</span><span class="dimtxt">` +
+        i18t("draw") + `</span>`;
+  } else if(checkColor){
+    const k = kingSq(st, checkColor);
+    const divine = st.charges[foe(checkColor)] > 0
+                && entityStrikesSquare(st, foe(checkColor), k.f, k.r);
+    statusEl.innerHTML =
+      `<span class="big ${cls}">` +
+      i18t("checkTitle", {s: st.turn === "w" ? i18t("whiteAdj") : i18t("blackAdj")}) +
+      `</span><span class="dimtxt">` + (divine ? i18t("callNote") : i18t("parryNote")) + `</span>`;
+  } else {
+    statusEl.innerHTML = `<span class="big ${cls}">` + i18t("turnOf", {s: side}) + `</span>` +
+      `<span class="dimtxt">` + i18t("legalMoves", {n: moves.length}) + `</span>`;
+  }
+
+  // liste des coups
+  movesEl.innerHTML = "";
+  for(let i=0; i<texts.length; i+=2){
+    const row = document.createElement("div"); row.className = "row";
+    const cell = mv => {
+      const s = document.createElement("span");
+      s.className = "mv" + (mv && mv.includes("*") ? " strike" : "");
+      s.textContent = mv || ""; return s;
+    };
+    const no = document.createElement("span"); no.className = "no"; no.textContent = (i/2 + 1) + ".";
+    row.append(no, cell(texts[i]), cell(texts[i+1]));
+    movesEl.appendChild(row);
+  }
+  movesEl.scrollTop = movesEl.scrollHeight;
+  document.getElementById("btn-undo").disabled = history.length === 0;
+}
+
+function play(mv, remote){
+  const txt = moveText(st, mv);
+  history.push(clone(st));
+  const next = applyMove(st, mv);
+  const nextMoves = legalMoves(next);
+  const check = inCheck(next, next.turn);
+  let sfx = "";
+  if(nextMoves.length === 0) sfx = check ? "#" : "=";
+  else if(check) sfx = "+";
+  played.push({move:mv, sfx:sfx});
+  texts.push(txt + sfx);
+  st = next; moves = nextMoves; last = mv; sel = null;
+
+  if(nextMoves.length === 0){
+    // l'issue est mémorisée sous forme de données : elle se retraduit à la volée
+    over = check
+      ? {mate:true, cls: st.turn === "w" ? "crim" : "gold", win: st.turn === "w" ? "b" : "w"}
+      : {mate:false};
+  }
+  // partie en ligne : ne renvoyer que mes propres coups, jamais ceux reçus
+  if(online.active && online.connected && !remote) netSend({t:"move", mv});
+  render();
+  // hot-seat local : retourner le plateau pour le joueur au trait
+  if(!online.active && aiSide() === "" && document.getElementById("autoflip").checked){
+    flipped = (st.turn === "b");
+  }
+  render();
+  maybeAI();
+}
+
+boardEl.addEventListener("click", e => {
+  if(over || aiThinking || st.turn === aiSide()) return;
+  // en ligne : n'agir que si connecté et que c'est bien mon tour
+  if(online.active && (!online.connected || st.turn !== online.myColor)) return;
+  const cell = e.target.closest(".sq");
+  if(!cell) return;
+  const f = +cell.dataset.f, r = +cell.dataset.r;
+
+  if(sel){
+    const cands = moves.filter(m => m.from.f === sel.f && m.from.r === sel.r
+                                 && m.to.f === f && m.to.r === r);
+    if(cands.length === 1) return play(cands[0]);
+    if(cands.length > 1) return askPromo(cands);   // promotion
+  }
+  const p = st.board[r][f];
+  if(p && p.c === st.turn){
+    const has = moves.some(m => m.from.f === f && m.from.r === r);
+    if(has){ sel = {f,r}; render(); return; }
+    if(isEntity(p)){
+      toast(i18t(st.charges[p.c] <= 0 ? "toastExhausted" : "toastNoTarget",
+                 {p: NAME[p.t]}));
+    }
+  }
+  sel = null; render();
+});
+
+function askPromo(cands){
+  const opts = document.getElementById("promo-opts");
+  opts.innerHTML = "";
+  for(const mv of cands){
+    const b = document.createElement("div");
+    b.className = "opt " + st.turn;
+    b.style.color = st.turn === "w" ? "var(--white-piece)" : "var(--black-piece)";
+    b.style.textShadow = st.turn === "w" ? "0 1px 0 #0009" : "0 1px 0 #fff2";
+    b.textContent = GLYPH[mv.promo];
+    b.title = NAME[mv.promo];
+    b.onclick = () => { promoEl.classList.remove("show"); play(mv); };
+    opts.appendChild(b);
+  }
+  promoEl.classList.add("show");
+}
+
+// chaque mise en place a son réglage de Recueillement conseillé
+document.getElementById("setup").onchange = e => {
+  document.getElementById("cool").checked = !!SETUPS[e.target.value].cooldown;
+  if(!online.active) reset();
+};
+document.getElementById("btn-new").onclick = () => {
+  if(online.active){
+    if(!online.connected) return;
+    const s = readSettings(); netSend({t:"newgame", s}); startOnlineGame(s);
+    return;
+  }
+  reset();
+};
+/* recule d'un demi-coup (partagé par l'annulation locale et en ligne) */
+function undoOne(){
+  if(!history.length) return;
+  st = history.pop(); texts.pop(); played.pop();
+  moves = legalMoves(st); sel = null; last = null; over = null; render();
+}
+document.getElementById("btn-undo").onclick = () => {
+  if(!history.length || aiThinking) return;
+  if(online.active){                        // annulation mutuelle : un demi-coup de chaque côté
+    if(!online.connected) return;
+    undoOne(); netSend({t:"undo"}); aiSay(""); return;
+  }
+  // on remonte jusqu'au trait humain, sinon l'IA rejouerait aussitôt
+  do { st = history.pop(); texts.pop(); played.pop(); }
+  while(history.length && aiSide() && st.turn === aiSide());
+  moves = legalMoves(st);
+  sel = null; last = null; over = null; aiSay(""); render();
+};
+document.getElementById("btn-rays").onclick = e => {
+  showRays = !showRays; e.currentTarget.classList.toggle("on", showRays); render();
+};
+document.getElementById("btn-flip").onclick = e => {
+  flipped = !flipped; e.currentTarget.classList.toggle("on", flipped); render();
+};
+
+/* ============================================================
+   MOTEUR — negamax alpha-bêta, approfondissement itératif,
+   évaluation consciente des entités.
+   ============================================================ */
+const VAL  = {P:100, N:320, B:330, A:650, R:500, Q:900, K:0, G:0, D:0};   // ordre des coups
+const MATE = 100000;
+
+/* Le « modèle » : un vecteur de poids. L'évaluation d'une position est
+   simplement W · features. Ces poids sont ce que le self-play apprend.
+   W.P = 100 sert d'unité (ancre), jamais ajusté. */
+const WKEYS = ["P","N","B","R","Q","A","pawnAdv","central","charge","ray"];
+const DEFAULT_W = {P:100,N:320,B:330,R:500,Q:900,A:650,pawnAdv:2,central:3,charge:280,ray:0.22};
+let W = Object.assign({}, DEFAULT_W);
+
+/* Features d'une position, du point de vue des Blancs (positif = bon pour B).
+   Utilisé pour l'entraînement ; doit rester synchrone avec evaluate(). */
+function computeFeatures(s){
+  let P=0,N=0,B=0,R=0,Q=0,A=0, pa=0, ce=0, ray=0;
+  for(let r=0; r<9; r++) for(let f=0; f<9; f++){
+    const p = s.board[r][f];
+    if(!p || isEntity(p)) continue;
+    const sg = p.c === "w" ? 1 : -1;
+    switch(p.t){
+      case "P": P+=sg; break; case "N": N+=sg; break; case "B": B+=sg; break;
+      case "R": R+=sg; break; case "Q": Q+=sg; break; case "A": A+=sg; break;
+    }
+    if(p.t === "P"){ const adv = p.c === "w" ? r-1 : 7-r; pa += sg*adv*adv; }
+    else if(p.t !== "K") ce += sg * (4 - Math.max(Math.abs(f-4), Math.abs(r-4)));
+  }
+  for(const c of ["w","b"]){
+    if(s.charges[c] <= 0 || s.dormant[c] > 0) continue;
+    const e = findEntity(s, c); if(!e) continue;
+    const sg = c === "w" ? 1 : -1;
+    for(const [df,dr] of ALL_D){
+      let ff = e.f+df, rr = e.r+dr;
+      while(on(ff,rr)){
+        const q = s.board[rr][ff];
+        if(q){ if(q.c !== c && !isEntity(q)) ray += sg * Math.min(VAL[q.t], 600); break; }
+        ff += df; rr += dr;
+      }
+    }
+  }
+  return {P,N,B,R,Q,A,pawnAdv:pa,central:ce,charge:(s.charges.w - s.charges.b),ray};
+}
+function evalFeat(F){
+  return W.P*F.P + W.N*F.N + W.B*F.B + W.R*F.R + W.Q*F.Q + W.A*F.A
+       + W.pawnAdv*F.pawnAdv + W.central*F.central + W.charge*F.charge + W.ray*F.ray;
+}
+
+/* evaluate() : version sans allocation pour la recherche (chemin critique),
+   mathématiquement identique à evalFeat(computeFeatures(s)). */
+function evaluate(s){
+  let m=0, pa=0, ce=0, ray=0;
+  for(let r=0; r<9; r++) for(let f=0; f<9; f++){
+    const p = s.board[r][f];
+    if(!p || isEntity(p)) continue;
+    const sg = p.c === "w" ? 1 : -1;
+    if(p.t === "K"){ continue; }                    // le Roi ne pèse pas dans le matériel
+    m += sg * W[p.t];
+    if(p.t === "P"){ const adv = p.c === "w" ? r-1 : 7-r; pa += sg*adv*adv; }
+    else ce += sg * (4 - Math.max(Math.abs(f-4), Math.abs(r-4)));
+  }
+  for(const c of ["w","b"]){
+    if(s.charges[c] <= 0 || s.dormant[c] > 0) continue;
+    const e = findEntity(s, c); if(!e) continue;
+    const sg = c === "w" ? 1 : -1;
+    for(const [df,dr] of ALL_D){
+      let ff = e.f+df, rr = e.r+dr;
+      while(on(ff,rr)){
+        const q = s.board[rr][ff];
+        if(q){ if(q.c !== c && !isEntity(q)) ray += sg * Math.min(VAL[q.t], 600); break; }
+        ff += df; rr += dr;
+      }
+    }
+  }
+  return m + W.pawnAdv*pa + W.central*ce + W.charge*(s.charges.w - s.charges.b) + W.ray*ray;
+}
+const sideEval = s => (s.turn === "w" ? 1 : -1) * evaluate(s);
+
+function orderMoves(s, ms){
+  for(const m of ms){
+    const victim = s.board[m.to.r][m.to.f];
+    const mover  = s.board[m.from.r][m.from.f];
+    m._s = victim ? VAL[victim.t]*10 - VAL[mover.t] : (m.enp ? 900 : 0);
+    if(m.type === "strike") m._s += 1200;      // prise gratuite : à essayer en premier
+    if(m.promo) m._s += VAL[m.promo];
+  }
+  ms.sort((a,b) => b._s - a._s);
+}
+
+function quiesce(s, alpha, beta, d, t0, budget){
+  const stand = sideEval(s);
+  if(d <= 0 || performance.now() - t0 > budget) return stand;
+  if(stand >= beta) return beta;
+  if(stand > alpha) alpha = stand;
+  const caps = legalMoves(s).filter(m =>
+    m.type === "strike" || m.enp || s.board[m.to.r][m.to.f]);
+  orderMoves(s, caps);
+  for(const m of caps){
+    const sc = -quiesce(applyMove(s,m), -beta, -alpha, d-1, t0, budget);
+    if(sc >= beta) return beta;
+    if(sc > alpha) alpha = sc;
+  }
+  return alpha;
+}
+
+function negamax(s, depth, alpha, beta, ply, t0, budget){
+  if(performance.now() - t0 > budget) return sideEval(s);
+  const ms = legalMoves(s);
+  if(!ms.length) return inCheck(s, s.turn) ? -(MATE - ply) : 0;
+  if(depth <= 0) return quiesce(s, alpha, beta, 4, t0, budget);
+  orderMoves(s, ms);
+  let best = -Infinity;
+  for(const m of ms){
+    const sc = -negamax(applyMove(s,m), depth-1, -beta, -alpha, ply+1, t0, budget);
+    if(sc > best) best = sc;
+    if(best > alpha) alpha = best;
+    if(alpha >= beta) break;
+  }
+  return best;
+}
+
+/* renvoie la liste des coups racine triés, du meilleur au pire */
+function searchTop(s, budget){
+  const t0 = performance.now();
+  let roots = legalMoves(s);
+  if(!roots.length) return [];
+  orderMoves(s, roots);
+  let scored = roots.map(m => ({move:m, score:0}));
+  let depthDone = 0;
+  for(let depth = 1; depth <= 6; depth++){
+    const pass = [];
+    let alpha = -Infinity, aborted = false;
+    for(const m of roots){
+      const sc = -negamax(applyMove(s,m), depth-1, -Infinity, -alpha, 1, t0, budget);
+      if(performance.now() - t0 > budget){ aborted = true; break; }
+      pass.push({move:m, score:sc});
+      if(sc > alpha) alpha = sc;
+    }
+    if(aborted) break;
+    pass.sort((a,b) => b.score - a.score);
+    scored = pass; depthDone = depth;
+    roots = pass.map(x => x.move);                 // meilleur coup en tête
+    if(Math.abs(scored[0].score) > MATE - 100) break;
+    if(performance.now() - t0 > budget * 0.5) break;
+  }
+  scored.depth = depthDone;
+  scored.ms = Math.round(performance.now() - t0);
+  return scored;
+}
+
+/* ============================================================
+   APPRENTISSAGE — self-play + réglage texel
+   Le moteur joue contre lui-même ; on garde qui gagne ; on ajuste
+   les poids pour que sigmoïde(éval) prédise l'issue de la partie.
+   ============================================================ */
+function materialScore(s){
+  let v = 0;
+  for(let r=0; r<9; r++) for(let f=0; f<9; f++){
+    const p = s.board[r][f];
+    if(p && !isEntity(p)) v += (p.c === "w" ? 1 : -1) * VAL[p.t];
+  }
+  return v;
+}
+function freshTrainingState(){
+  const key = document.getElementById("setup").value;
+  return newState(key, {
+    chW:+document.getElementById("sel-chw").value,
+    chB:+document.getElementById("sel-chb").value,
+    cooldown: document.getElementById("cool").checked ? 2 : 0
+  });
+}
+/* mini alpha-bêta pseudo-légal : pas de validation d'échec (trop chère sur
+   9×9), on prune plutôt en autorisant la capture du Roi = victoire immédiate.
+   Assez fort pour ne pas brader une pièce, assez rapide pour des milliers
+   de parties. */
+function spScore(s, depth, alpha, beta){
+  const ms = pseudoMoves(s, s.turn, true);
+  for(const m of ms){                          // le camp au trait peut-il prendre le Roi ?
+    const t = s.board[m.to.r][m.to.f];
+    if(t && t.t === "K") return MATE - (40 - depth);
+  }
+  if(depth <= 0) return sideEval(s);
+  if(!ms.length) return 0;
+  orderMoves(s, ms);
+  let best = -Infinity;
+  for(const m of ms){
+    const v = -spScore(applyMove(s,m), depth-1, -beta, -alpha);
+    if(v > best) best = v;
+    if(best > alpha) alpha = best;
+    if(alpha >= beta) break;
+  }
+  return best;
+}
+
+/* choix d'un coup pour le self-play : softmax bruité sur les meilleurs,
+   plus un grain d'aléatoire — pour varier les parties. */
+function pickTrainingMove(scored, temp, eps){
+  if(Math.random() < eps) return scored[(Math.random()*scored.length)|0].m;
+  scored.sort((a,b) => b.sc - a.sc);
+  const top = scored.slice(0, 6);
+  const best = top[0].sc;
+  let sum = 0;
+  for(const t of top){ t.w = Math.exp((t.sc - best)/temp); sum += t.w; }
+  let r = Math.random() * sum;
+  for(const t of top){ r -= t.w; if(r <= 0) return t.m; }
+  return top[0].m;
+}
+function selfPlayGame(rec){
+  let s = freshTrainingState();
+  const seen = []; const MAXP = 120; let result = 0.5;
+  for(let ply=0; ply<MAXP; ply++){
+    const ms = legalMoves(s);
+    if(!ms.length){                                    // mat ou pat
+      result = inCheck(s, s.turn) ? (s.turn === "w" ? 0 : 1) : 0.5;
+      break;
+    }
+    // pré-tri statique 1-ply (rapide) sur tous les coups…
+    const rough = ms.map(m => ({m, sc:-sideEval(applyMove(s,m))}));
+    rough.sort((a,b) => b.sc - a.sc);
+    // …puis affinage alpha-bêta profondeur 2 sur les 6 meilleurs seulement
+    const shortlist = rough.slice(0, 6);
+    for(const c of shortlist) c.sc = -spScore(applyMove(s, c.m), 2, -1e9, 1e9);
+    const m = pickTrainingMove(shortlist, 70, 0.05);
+    const cap = m.type === "strike" || m.enp || s.board[m.to.r][m.to.f];
+    // on ne retient que des positions calmes, hors ouverture, une sur deux
+    if(ply >= 6 && !cap && !inCheck(s, s.turn) && (ply & 1) === 0) seen.push(computeFeatures(s));
+    s = applyMove(s, m);
+    if(ply === MAXP-1){ const mm = materialScore(s); result = mm>200?1:mm<-200?0:0.5; }
+  }
+  for(const F of seen) rec.push({F, r:result});
+}
+const sigmoid = (e,K) => 1 / (1 + Math.pow(10, -e/K));
+function trainError(data, K){
+  let s = 0;
+  for(const d of data){ const e = d.r - sigmoid(evalFeat(d.F), K); s += e*e; }
+  return s / data.length;
+}
+function bestK(data){
+  let bK = 200, bErr = Infinity;
+  for(let K=40; K<=1300; K+=20){ const e = trainError(data, K); if(e < bErr){ bErr = e; bK = K; } }
+  return bK;
+}
+/* descente par coordonnée : on pousse chaque poids ± un pas, on garde si
+   l'erreur baisse. Poids P ancré à 100. */
+function tuneWeights(data){
+  const K = bestK(data);
+  const steps = {N:8,B:8,R:10,Q:12,A:12,pawnAdv:0.2,central:0.3,charge:15,ray:0.03};
+  const nonNeg = {N:1,B:1,R:1,Q:1,A:1,charge:1};
+  const keys = Object.keys(steps);
+  let best = trainError(data, K); const before = best;
+  for(let pass=0; pass<10; pass++){
+    let improved = false;
+    for(const k of keys){
+      for(const dir of [1,-1]){
+        const d = steps[k] * dir;
+        W[k] += d;
+        if(nonNeg[k] && W[k] < 0){ W[k] -= d; continue; }
+        const e = trainError(data, K);
+        if(e < best - 1e-9){ best = e; improved = true; }
+        else W[k] -= d;
+      }
+    }
+    if(!improved){ for(const k of keys) steps[k] *= 0.5; if(steps.charge < 1) break; }
+  }
+  return {K, before, after:best};
+}
+
+/* persistance du modèle (localStorage + fichier) */
+function saveWeights(){ try{ localStorage.setItem("zenith-eval", JSON.stringify(W)); }catch(_){}}
+function loadWeights(){
+  try{ const j = JSON.parse(localStorage.getItem("zenith-eval"));
+       if(j) for(const k of WKEYS) if(typeof j[k] === "number") W[k] = j[k]; }catch(_){}
+}
+function weightSummary(){
+  return WKEYS.map(k => k + " " + (Math.abs(W[k])>=10 ? Math.round(W[k]) : W[k].toFixed(2))).join(" · ");
+}
+function renderWeights(){
+  const el = document.getElementById("weights");
+  if(el) el.textContent = weightSummary();
+}
+
+let training = false;
+async function trainSelfPlay(nGames){
+  if(training || aiThinking) return;
+  training = true;
+  document.getElementById("btn-train").disabled = true;
+  const say = document.getElementById("train-say");
+  const data = [];
+  const yield_ = () => new Promise(r => setTimeout(r));
+  for(let g=0; g<nGames; g++){
+    selfPlayGame(data);
+    if(g % 2 === 0){
+      say.innerHTML = '<span class="think">' +
+        i18t("trainSelf", {i:g+1, n:nGames, k:data.length}) + '</span>';
+      await yield_();
+    }
+  }
+  say.innerHTML = '<span class="think">' + i18t("trainTune", {n:data.length}) + '</span>';
+  await yield_();
+  const res = tuneWeights(data);
+  saveWeights(); renderWeights();
+  say.innerHTML = i18t("trainDone", {a:res.before.toFixed(4), b:res.after.toFixed(4),
+                                     k:res.K, n:data.length});
+  training = false;
+  document.getElementById("btn-train").disabled = false;
+}
+
+/* ============================================================
+   PONT llama.cpp — serveur OpenAI-compatible (llama-server)
+   ============================================================ */
+function asciiBoard(s){
+  const L = [];
+  for(let r = 8; r >= 0; r--){
+    let row = (r+1) + " ";
+    for(let f = 0; f < 9; f++){
+      const p = s.board[r][f];
+      if(!p) row += ". ";
+      else if(p.t === "G") row += "Ω ";
+      else if(p.t === "D") row += "Ψ ";
+      else row += (p.c === "w" ? p.t : p.t.toLowerCase()) + " ";
+    }
+    L.push(row.trim());
+  }
+  L.push("  a b c d e f g h i");
+  return L.join("\n");
+}
+/* L'invite est rédigée dans la langue de l'interface : le modèle
+   justifie donc son coup dans cette même langue. */
+function userPrompt(s, list){
+  return [
+i18t("pRules"),
+"",
+i18t("pPosition"), asciiBoard(s), "",
+i18t("pTurn", {s: s.turn === "w" ? i18t("white") : i18t("black")}),
+i18t("pCharges", {w: s.charges.w, b: s.charges.b}),
+"",
+i18t("pMoves"),
+list.map((x,i) => (i+1) + ". " + x.text +
+  (x.score !== undefined ? "  [" + i18t("pEval") + " " + x.score + "]" : "")).join("\n"),
+"",
+i18t("pAnswer")
+  ].join("\n");
+}
+
+async function callLlama(s, list, temp){
+  const url   = document.getElementById("llm-url").value.trim();
+  const model = document.getElementById("llm-model").value.trim() || "local";
+  const res = await fetch(url, {
+    method:"POST",
+    headers:{"Content-Type":"application/json"},
+    body: JSON.stringify({
+      model, temperature: temp, max_tokens: 200, stream: false,
+      messages:[{role:"system", content:i18t("pSys")},
+                {role:"user",   content:userPrompt(s, list)}]
+    })
+  });
+  if(!res.ok) throw new Error("HTTP " + res.status);
+  const data = await res.json();
+  const txt = (data.choices && data.choices[0] && data.choices[0].message &&
+               data.choices[0].message.content) || "";
+  // 1) JSON strict, 2) premier objet trouvé, 3) coup repéré au texte brut
+  let coup = null, raison = "";
+  const j = txt.match(/\{[\s\S]*\}/);
+  if(j){
+    try{ const o = JSON.parse(j[0]); coup = String(o.coup || o.move || "").trim();
+         raison = String(o.raison || o.reason || "").trim(); }catch(_){}
+  }
+  if(!coup){
+    const hit = list.find(x => txt.includes(x.text));
+    if(hit) coup = hit.text;
+  }
+  if(!coup){
+    const n = txt.match(/\b(\d{1,3})\b/);
+    if(n && list[+n[1]-1]) coup = list[+n[1]-1].text;
+  }
+  const found = list.find(x => x.text === coup)
+             || list.find(x => x.text.replace(/[+#]$/,"") === (coup||"").replace(/[+#]$/,""));
+  if(!found) throw new Error(i18t("aiBadReply", {t: txt.slice(0,90)}));
+  return {move:found.move, raison};
+}
+
+/* ============================================================
+   Arbitrage IA
+   ============================================================ */
+let aiThinking = false;
+const aiSay = (html) => { document.getElementById("ai-say").innerHTML = html; };
+
+function aiSide(){ return document.getElementById("ai-side").value; }
+
+function maybeAI(){
+  if(online.active) return;          // pas d'IA en partie humaine à distance
+  if(over || aiThinking) return;
+  if(st.turn !== aiSide()) return;
+  aiThinking = true;
+  const kind  = document.getElementById("ai-kind").value;
+  const budget = +document.getElementById("ai-level").value;
+  aiSay('<span class="think">' + i18t("aiThinking") + '</span>');
+  render();
+  setTimeout(() => runAI(kind, budget).catch(e => {
+    aiSay('<span class="warn">' + e.message + '</span>');
+  }).then(() => { aiThinking = false; render(); }), 30);
+}
+
+async function runAI(kind, budget){
+  const legal = legalMoves(st);
+  if(!legal.length){ aiThinking = false; return; }
+
+  // --- llama.cpp seul : toute la liste légale, le modèle choisit
+  if(kind === "llm"){
+    const list = legal.map(m => ({move:m, text:moveText(st,m)}));
+    try{
+      const r = await callLlama(st, list, 0.3);
+      aiSay('<span class="quote">« ' + (r.raison || "…") + ' »</span>');
+      aiThinking = false; return play(r.move);
+    }catch(e){
+      const fb = searchTop(st, budget)[0];
+      aiSay('<span class="warn">llama.cpp : ' + e.message + '</span><br>' +
+            '<span class="dimtxt">' + i18t("aiFallback") + '</span>');
+      aiThinking = false; return play(fb.move);
+    }
+  }
+
+  // --- moteur local
+  const top = searchTop(st, budget);
+  if(kind === "engine"){
+    let pick = top[0];
+    if(budget <= 200 && top.length > 1 && Math.random() < 0.35)
+      pick = top[Math.min(top.length-1, 1 + (Math.random()*2|0))];   // Novice : imprécis
+    aiSay('<span class="dimtxt">' + i18t("aiDepth", {d:(top.depth||1), ms:top.ms,
+          e:(top[0].score/100).toFixed(2)}) + '</span>');
+    aiThinking = false; return play(pick.move);
+  }
+
+  // --- Oracle : le moteur présélectionne, llama.cpp tranche
+  const short = top.slice(0, 4).map(x => ({move:x.move, text:moveText(st,x.move),
+                                           score:(x.score/100).toFixed(2)}));
+  try{
+    const r = await callLlama(st, short, 0.6);
+    aiSay('<span class="quote">« ' + (r.raison || "…") + ' »</span><br>' +
+          '<span class="dimtxt">' + i18t("aiChosen", {n:short.length, d:(top.depth||1)}) + '</span>');
+    aiThinking = false; return play(r.move);
+  }catch(e){
+    aiSay('<span class="warn">llama.cpp : ' + e.message + '</span><br>' +
+          '<span class="dimtxt">' + i18t("aiAlone") + '</span>');
+    aiThinking = false; return play(top[0].move);
+  }
+}
+
+/* ============================================================
+   JEU EN LIGNE — pair-à-pair WebRTC, sans serveur.
+   Signalisation manuelle : les deux joueurs échangent une offre et
+   une réponse (codes copiés-collés). Seuls les coups transitent
+   ensuite ; le moteur étant déterministe, les deux plateaux restent
+   identiques. L'hôte joue les Blancs, l'invité les Noirs.
+   ============================================================ */
+const online = {active:false, connected:false, pc:null, dc:null, myColor:null, role:null};
+const ICE = {iceServers:[{urls:"stun:stun.l.google.com:19302"},{urls:"stun:stun1.l.google.com:19302"}]};
+
+const $ = id => document.getElementById(id);
+function readSettings(){
+  return {setup:$("setup").value, chW:+$("sel-chw").value, chB:+$("sel-chb").value, cool:$("cool").checked};
+}
+function applyOnlineSettings(s){
+  $("setup").value = s.setup;
+  $("sel-chw").value = s.chW; $("sel-chb").value = s.chB;
+  $("cool").checked = !!s.cool;
+}
+/* (ré)initialise une partie en ligne à partir de réglages partagés */
+function startOnlineGame(s){
+  applyOnlineSettings(s);
+  $("ai-side").value = "";                 // aucune IA en ligne
+  reset();
+  flipped = (online.myColor === "b");      // chacun voit son camp en bas
+  aiSay(""); render();
+}
+
+/* encodage des descriptions de session (SDP en ASCII → base64) */
+const encodeSig = d => btoa(JSON.stringify({type:d.type, sdp:d.sdp}));
+const decodeSig = c => JSON.parse(atob(c.trim()));
+function netSend(o){
+  try{ if(online.dc && online.dc.readyState === "open") online.dc.send(JSON.stringify(o)); }catch(_){}
+}
+
+function setNetStatus(dot, key, vars){
+  $("net-status").innerHTML = '<span class="net-dot ' + dot + '"></span>' + i18t(key, vars);
+}
+function lockConfig(on){
+  for(const id of ["setup","sel-chw","sel-chb","cool","ai-side","ai-kind","ai-level"]) $(id).disabled = on;
+}
+/* pilote l'affichage : 'idle' | 'host' | 'join' | 'live' */
+function netMode(mode){
+  $("net-host").style.display = mode === "host" ? "flex" : "none";
+  $("net-join").style.display = mode === "join" ? "flex" : "none";
+  const busy = mode !== "idle";
+  $("btn-host").style.display = busy ? "none" : "inline-block";
+  $("btn-join").style.display = busy ? "none" : "inline-block";
+  $("btn-leave").style.display = busy ? "inline-block" : "none";
+  lockConfig(busy);
+}
+
+function newPC(){
+  const pc = new RTCPeerConnection(ICE);
+  pc.onconnectionstatechange = () => {
+    if(["disconnected","failed","closed"].includes(pc.connectionState) && online.active) netDown();
+  };
+  return pc;
+}
+/* attend la fin de la collecte ICE pour livrer un code complet (ou 2,5 s) */
+function waitIce(pc){
+  return new Promise(res => {
+    if(pc.iceGatheringState === "complete") return res();
+    const done = () => { pc.removeEventListener("icegatheringstatechange", chk); res(); };
+    const chk = () => { if(pc.iceGatheringState === "complete"){ clearTimeout(t); done(); } };
+    const t = setTimeout(done, 2500);
+    pc.addEventListener("icegatheringstatechange", chk);
+  });
+}
+function wireDC(dc){
+  online.dc = dc;
+  dc.onopen = () => {
+    online.connected = true;
+    netMode("live");
+    setNetStatus("on", "netConnected", {s: i18t(online.myColor === "w" ? "white" : "black")});
+    if(online.role === "host"){ const s = readSettings(); netSend({t:"init", s}); startOnlineGame(s); }
+  };
+  dc.onmessage = netRecv;
+  dc.onclose = () => { if(online.active) netDown(); };
+}
+/* retrouve le coup légal local correspondant au coup reçu (sécurité anti-désync) */
+function findLocalMove(mv){
+  return moves.find(m =>
+    m.type === mv.type &&
+    m.from.f === mv.from.f && m.from.r === mv.from.r &&
+    m.to.f === mv.to.f && m.to.r === mv.to.r &&
+    (m.promo || null) === (mv.promo || null) &&
+    (m.side || null) === (mv.side || null));
+}
+function netRecv(ev){
+  let o; try{ o = JSON.parse(ev.data); }catch(_){ return; }
+  if(o.t === "init" || o.t === "newgame"){ startOnlineGame(o.s); }
+  else if(o.t === "move"){ const m = findLocalMove(o.mv); if(m && !over) play(m, true); }
+  else if(o.t === "undo"){ undoOne(); }
+  else if(o.t === "bye"){ netDown(true); }
+}
+
+/* ---- hôte (Blancs) ---- */
+async function hostCreate(){
+  leaveOnline(true);
+  online.active = true; online.myColor = "w"; online.role = "host";
+  netMode("host"); setNetStatus("wait", "netWaiting");
+  try{
+    const pc = newPC(); online.pc = pc;
+    wireDC(pc.createDataChannel("zenith"));
+    await pc.setLocalDescription(await pc.createOffer());
+    await waitIce(pc);
+    $("net-offer").value = encodeSig(pc.localDescription);
+  }catch(e){ setNetStatus("err", "netError"); }
+}
+async function hostConnect(){
+  const code = $("net-answer-in").value.trim();
+  if(!code || !online.pc) return;
+  try{ await online.pc.setRemoteDescription(decodeSig(code)); }
+  catch(e){ setNetStatus("err", "netError"); }
+}
+
+/* ---- invité (Noirs) ---- */
+function joinStart(){
+  leaveOnline(true);
+  online.active = true; online.myColor = "b"; online.role = "guest";
+  netMode("join"); setNetStatus("wait", "netWaiting");
+}
+async function guestAnswer(){
+  const code = $("net-offer-in").value.trim();
+  if(!code) return;
+  try{
+    const pc = newPC(); online.pc = pc;
+    pc.ondatachannel = e => wireDC(e.channel);
+    await pc.setRemoteDescription(decodeSig(code));
+    await pc.setLocalDescription(await pc.createAnswer());
+    await waitIce(pc);
+    $("net-answer-out").value = encodeSig(pc.localDescription);
+  }catch(e){ setNetStatus("err", "netError"); }
+}
+
+function closePeer(){
+  try{ if(online.dc) online.dc.close(); }catch(_){}
+  try{ if(online.pc) online.pc.close(); }catch(_){}
+  online.pc = null; online.dc = null;
+}
+function leaveOnline(silent){
+  if(online.active && !silent) netSend({t:"bye"});
+  closePeer();
+  online.active = false; online.connected = false; online.myColor = null; online.role = null;
+  for(const id of ["net-offer","net-answer-in","net-offer-in","net-answer-out"]) $(id).value = "";
+  netMode("idle"); setNetStatus("off", "netIdle");
+}
+/* le pair est parti / la connexion a chuté : on reste sur la position atteinte */
+function netDown(silent){
+  const wasLive = online.connected;
+  closePeer();
+  online.active = false; online.connected = false; online.myColor = null; online.role = null;
+  netMode("idle");
+  setNetStatus(wasLive ? "err" : "off", wasLive ? "netLeft" : "netIdle");
+  render();
+}
+
+function copyFrom(id){
+  const el = $(id), v = el.value;
+  if(!v) return;
+  const ok = () => toast(i18t("copied"));
+  if(navigator.clipboard && navigator.clipboard.writeText)
+    navigator.clipboard.writeText(v).then(ok, () => { el.select(); try{ document.execCommand("copy"); ok(); }catch(_){} });
+  else { el.select(); try{ document.execCommand("copy"); ok(); }catch(_){} }
+}
+
+$("btn-host").onclick = hostCreate;
+$("btn-join").onclick = joinStart;
+$("btn-leave").onclick = () => leaveOnline(false);
+$("btn-host-connect").onclick = hostConnect;
+$("btn-gen-answer").onclick = guestAnswer;
+$("btn-copy-offer").onclick = () => copyFrom("net-offer");
+$("btn-copy-answer").onclick = () => copyFrom("net-answer-out");
+window.addEventListener("beforeunload", () => { if(online.active) netSend({t:"bye"}); });
+
+/* réglages IA */
+document.getElementById("ai-kind").onchange = e => {
+  document.getElementById("llm-cfg").style.display =
+    e.target.value === "engine" ? "none" : "block";
+  maybeAI();
+};
+document.getElementById("ai-side").onchange = () => { aiSay(""); maybeAI(); };
+document.getElementById("btn-test").onclick = async e => {
+  const b = e.currentTarget; b.disabled = true;
+  aiSay('<span class="think">' + i18t("aiTest") + '</span>');
+  try{
+    const list = legalMoves(st).slice(0,6).map(m => ({move:m, text:moveText(st,m)}));
+    const r = await callLlama(st, list, 0.2);
+    aiSay('<span class="quote">' + i18t("aiConnected", {m: moveText(st, r.move)}) + '</span>');
+  }catch(err){
+    aiSay('<span class="warn">' + i18t("aiFail", {e: err.message}) + '</span><br>' +
+          '<span class="dimtxt">' + i18t("aiHint") + '</span>');
+  }
+  b.disabled = false;
+};
+
+/* boutons d'apprentissage */
+document.getElementById("btn-train").onclick = () =>
+  trainSelfPlay(+document.getElementById("train-n").value);
+document.getElementById("btn-w-reset").onclick = () => {
+  if(training) return;
+  Object.assign(W, DEFAULT_W); saveWeights(); renderWeights();
+  document.getElementById("train-say").textContent = i18t("trainReset");
+};
+document.getElementById("btn-w-export").onclick = () => {
+  const blob = new Blob([JSON.stringify(W, null, 2)], {type:"application/json"});
+  const a = document.createElement("a");
+  a.href = URL.createObjectURL(blob); a.download = "zenith-eval.json"; a.click();
+  URL.revokeObjectURL(a.href);
+};
+document.getElementById("btn-w-import").onclick = () => document.getElementById("w-file").click();
+document.getElementById("w-file").onchange = e => {
+  const file = e.target.files[0]; if(!file) return;
+  const rd = new FileReader();
+  rd.onload = () => {
+    try{
+      const j = JSON.parse(rd.result); let n = 0;
+      for(const k of WKEYS) if(typeof j[k] === "number"){ W[k] = j[k]; n++; }
+      saveWeights(); renderWeights();
+      document.getElementById("train-say").textContent = i18t("trainImported", {n:n});
+    }catch(_){ document.getElementById("train-say").innerHTML =
+      '<span class="warn">' + i18t("trainBadFile") + '</span>'; }
+  };
+  rd.readAsText(file); e.target.value = "";
+};
+
+/* sélecteur de langue */
+const langSel = document.getElementById("lang");
+langSel.value = LANG;
+langSel.onchange = e => setLang(e.target.value);
+applyI18n();
+
+loadWeights();           // récupère le modèle appris précédemment
+renderWeights();
+document.getElementById("cool").checked =
+  !!SETUPS[document.getElementById("setup").value].cooldown;
+reset();
+</script>
+</body>
+</html>
